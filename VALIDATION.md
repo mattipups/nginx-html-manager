@@ -1,21 +1,32 @@
-# Prüfprotokoll — 2026-10-06 — Version 1.0.1
+# Prüfprotokoll 1.0.2 — 2026-10-06
 
-## Erfolgreich ausgeführt
+Basis: c9a0399ff3499c42abdc5c7006d6514a234e0bd9.
 
-- JavaScript-Syntaxprüfung mit `node --check`.
-- Sechs von sechs UI-Logiktests mit `node --test`: leere Liste, sichere Dateinamen-Darstellung, opener-Isolation, Filter, abgelehnte Dateiendung, abgebrochene Löschung.
-- Bash-Syntaxprüfung aller sechs Shell-Skripte; Ausführungsrechte geprüft.
-- YAML-Parsing von Compose und GitHub-Actions-Workflow. Keine Compose-Schemavalidierung.
-- JSON-Parsing von Renovate. Keine Renovate-Schemavalidierung.
-- Makefile-Targets mit `make -n` geparst.
-- Git-Ignore-Regeln im temporären Repository geprüft: Secrets/Uploads ignoriert, Quellcode/Digest-Lock versionierbar.
-- Compose-Sicherheitsparameter statisch geprüft. Keine Laufzeitprüfung.
+## Tatsächlich ausgeführt
+
+- Compose YAML parsing
+- CI workflow YAML parsing
+- Named volume and public-only read-only NGINX mount
+- Static container security and tmpfs settings
+- Build and scan image version consistency
+- VERSION file consistency
+- Bash syntax for init.sh and scan.sh
+- All Makefile targets parsed with make -n
+- CI embedded Python syntax
+- Existing UI IDs preserved and logo routes match
+- CSS stylesheet parsing
+- Original logo SHA-256 and repository Git blob identity
+- Static storage initializer and original HTML validation pattern
+- Static Docker build inclusion of tests, logos and owned data tree
 
 ## Nicht ausgeführt
 
-- 14 enthaltene Go-Tests, `go vet`, Go-Kompilierung und gofmt: Go nicht installiert.
-- Docker-Build/Start, NGINX-`-t`, Stack-Smoke-Test: Docker/NGINX nicht verfügbar.
-- Echter Browser-End-to-End-Test: UI-Tests verwenden einen DOM-Mock.
-- Registry-Digest-Auflösung, Trivy-CVE-Scan, SBOM-Erstellung: nicht ausgeführt.
+- Go compilation, gofmt, Go tests and go vet
+- Helm lint/rendering
+- Docker/Compose schema and runtime
+- NGINX syntax and stack smoke test
+- Kubernetes PVC/CSI runtime
+- Trivy scan, digest refresh and SBOM
+- Real browser E2E
 
-Projektdateien wurden anhand des Gesprächs neu zusammengestellt; das ältere ZIP stand nicht mehr zur Verfügung. Das Paket ist kein Nachweis eines bereits geprüften Produktivdeployments. Keine zugesicherte allgemeine oder dauerhafte CVE-Freiheit. Echte Digests ausschließlich auf dem Zielsystem ermitteln.
+Go, Helm, Docker und NGINX sind hier nicht installiert. Statische Prüfungen ersetzen keine Kompilierung, echtes Helm-Rendering oder Laufzeitabnahme. Bereitgestellte Tests/CI müssen vor Produktion erfolgreich laufen. Die neuen Go-Tests prüfen Original-Logo-Prüfsummen, Authentifizierung, HEAD und idempotente Speicherinitialisierung. Keine Zusicherung dauerhafter CVE-Freiheit.

@@ -13,7 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Initialize local CI config
-        run: ./scripts/init.sh
+        run: bash scripts/init.sh
       - name: Require committed digest lock
         run: |
           test -f images.lock.env || { echo 'Run scripts/lock-images.sh and commit images.lock.env first'; exit 1; }
@@ -25,15 +25,15 @@ jobs:
               assert re.fullmatch(r'[^\s]+@sha256:[a-f0-9]{64}', values[key]), key
           PY
       - name: Build both runtime images (includes Go tests)
-        run: ./scripts/compose.sh build --pull
+        run: bash scripts/compose.sh build --pull
       - name: Test UI and NGINX configuration
-        run: ./scripts/test.sh
+        run: bash scripts/test.sh
       - name: Start stack
-        run: ./scripts/compose.sh up -d --wait --wait-timeout 120
+        run: bash scripts/compose.sh up -d --wait --wait-timeout 120
       - name: Integration smoke test
-        run: ./scripts/smoke.sh
+        run: bash scripts/smoke.sh
       - name: Scan runtime images and generate SBOMs
-        run: ./scripts/scan.sh
+        run: bash scripts/scan.sh
       - name: Upload reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -45,4 +45,4 @@ jobs:
           if-no-files-found: ignore
       - name: Shutdown
         if: always()
-        run: ./scripts/compose.sh down
+        run: bash scripts/compose.sh down
