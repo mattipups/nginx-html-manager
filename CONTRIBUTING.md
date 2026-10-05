@@ -9,4 +9,4 @@
 
 `images.lock.env` gehört in Git. Nach `make lock` sowohl Images bauen als auch testen und scannen. Renovate erzeugt kontrollierbare Digest-Update-PRs. Wöchentliche CI-Scans prüfen unveränderte Images gegen neue CVE-Datenbanken.
 
-Empfohlene Repository-Regeln: geschützter main-Branch, verpflichtender CI-Check, kein direktes Pushen nach main, keine automatischen Security-Ausnahmen. CI veröffentlicht absichtlich keine Images und führt kein automatisches Deployment aus.
+Empfohlene Repository-Regeln: geschützter main-Branch, verpflichtender CI-Check, keine direkten Pushes nach main, keine automatischen Security-Ausnahmen. CI veröffentlicht keine Images und führt kein automatisches Deployment aus.

@@ -1,5 +1,6 @@
 {
-  "date": "2026-10-05",
+  "version": "1.0.1",
+  "date": "2026-10-06",
   "checks": [
     {
       "check": "JavaScript syntax",
@@ -7,39 +8,44 @@
       "output": ""
     },
     {
-      "check": "UI logic tests",
+      "check": "Six UI logic tests",
       "exit_code": 0,
-      "output": "TAP version 13\n# Subtest: empty list is shown\nok 1 - empty list is shown\n  ---\n  duration_ms: 7.568987\n  ...\n# Subtest: filenames are text, never innerHTML\nok 2 - filenames are text, never innerHTML\n  ---\n  duration_ms: 31.847028\n  ...\n# Subtest: external tab cannot access the opener\nok 3 - external tab cannot access the opener\n  ---\n  duration_ms: 1.782973\n  ...\n# Subtest: name filtering is case insensitive\nok 4 - name filtering is case insensitive\n  ---\n  duration_ms: 2.557808\n  ...\n# Subtest: unsupported extension fails without a network upload\nok 5 - unsupported extension fails without a network upload\n  ---\n  duration_ms: 1.705848\n  ...\n# Subtest: cancelled delete does not request deletion\nok 6 - cancelled delete does not request deletion\n  ---\n  duration_ms: 1.403923\n  ...\n1..6\n# tests 6\n# suites 0\n# pass 6\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 89.98242\n"
+      "output": "TAP version 13\n# Subtest: empty list is shown\nok 1 - empty list is shown\n  ---\n  duration_ms: 7.168526\n  ...\n# Subtest: filenames are text, never innerHTML\nok 2 - filenames are text, never innerHTML\n  ---\n  duration_ms: 36.748654\n  ...\n# Subtest: external tab cannot access the opener\nok 3 - external tab cannot access the opener\n  ---\n  duration_ms: 1.736761\n  ...\n# Subtest: name filtering is case insensitive\nok 4 - name filtering is case insensitive\n  ---\n  duration_ms: 3.136053\n  ...\n# Subtest: unsupported extension fails without a network upload\nok 5 - unsupported extension fails without a network upload\n  ---\n  duration_ms: 1.699913\n  ...\n# Subtest: cancelled delete does not request deletion\nok 6 - cancelled delete does not request deletion\n  ---\n  duration_ms: 1.376791\n  ...\n1..6\n# tests 6\n# suites 0\n# pass 6\n# fail 0\n# cancelled 0\n# skipped 0\n# todo 0\n# duration_ms 101.113644\n"
     },
     {
-      "check": "init.sh shell syntax",
+      "check": "compose.sh Bash syntax",
       "exit_code": 0,
       "output": ""
     },
     {
-      "check": "scan.sh shell syntax",
+      "check": "init.sh Bash syntax",
       "exit_code": 0,
       "output": ""
     },
     {
-      "check": "test.sh shell syntax",
+      "check": "lock-images.sh Bash syntax",
       "exit_code": 0,
       "output": ""
     },
     {
-      "check": "compose.sh shell syntax",
+      "check": "scan.sh Bash syntax",
       "exit_code": 0,
       "output": ""
     },
     {
-      "check": "smoke.sh shell syntax",
+      "check": "smoke.sh Bash syntax",
       "exit_code": 0,
       "output": ""
     },
     {
-      "check": "lock-images.sh shell syntax",
+      "check": "test.sh Bash syntax",
       "exit_code": 0,
       "output": ""
+    },
+    {
+      "check": "Makefile dry-run",
+      "exit_code": 0,
+      "output": "./scripts/init.sh\n./scripts/lock-images.sh\n./scripts/compose.sh build --pull\n./scripts/compose.sh up -d --build --wait\n./scripts/compose.sh down\n./scripts/test.sh\n./scripts/scan.sh\n./scripts/smoke.sh\n./scripts/compose.sh logs -f\n"
     },
     {
       "check": "compose.yaml YAML parsing",
@@ -52,24 +58,27 @@
     {
       "check": "Renovate JSON parsing",
       "exit_code": 0
+    },
+    {
+      "check": "Git ignore rules",
+      "exit_code": 0
+    },
+    {
+      "check": "Compose static security settings",
+      "exit_code": 0
     }
   ],
   "not_executed": [
     "Go compilation",
     "Go tests (14)",
     "go vet",
-    "Docker builds",
+    "gofmt",
+    "Docker builds/start",
     "NGINX syntax",
-    "Integration smoke",
-    "real browser E2E",
-    "registry digests",
+    "Stack smoke test",
+    "Real browser E2E",
+    "Registry digest resolution",
     "Trivy scan",
     "SBOM generation"
-  ],
-  "final_static_checks": [
-    "All six shell scripts pass syntax and executable-bit checks",
-    "Makefile targets parse successfully",
-    "Git ignores configuration/secrets/uploads/reports, but retains source and digest lock",
-    "Compose static security settings and unpublished backend port checked"
   ]
 }

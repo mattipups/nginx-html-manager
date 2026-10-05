@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-# Local defaults only; set these for a remote or HTTPS deployment.
 admin=${ADMIN_TEST_URL:-http://localhost:8080}
 public=${PUBLIC_TEST_URL:-http://localhost:8081}
 user=${ADMIN_TEST_USER:-admin}

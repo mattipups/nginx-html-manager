@@ -12,7 +12,7 @@ for name in backend nginx; do
   archive="artifacts/${name}.tar"
   docker save "$image" -o "$archive"
   chmod 644 "$archive"
-  # Scan saved archives without exposing the Docker socket to the scanner.
+  # Saved archives avoid giving the scanner access to the Docker socket.
   runner=(docker run --rm --user "$(id -u):$(id -g)" --read-only --cap-drop ALL --security-opt no-new-privileges --tmpfs /tmp:size=1g,mode=1777 -e TRIVY_CACHE_DIR=/tmp/trivy -v "$PWD/artifacts:/artifacts" "$TRIVY_IMAGE")
   "${runner[@]}" image --input "/artifacts/${name}.tar" --scanners vuln --severity "$severity" --exit-code 1 --format json --output "/artifacts/${name}-trivy.json" || result=1
   "${runner[@]}" image --input "/artifacts/${name}.tar" --format cyclonedx --output "/artifacts/${name}-sbom.cdx.json" || result=1
