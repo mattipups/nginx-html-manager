@@ -1,0 +1,11 @@
+.env
+.env.*
+!.env.example
+secrets/*
+!secrets/.gitkeep
+data/*
+!data/.gitkeep
+artifacts/
+/server
+*.log
+.DS_Store

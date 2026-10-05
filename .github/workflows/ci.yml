@@ -1,0 +1,48 @@
+name: Test and vulnerability gate
+on:
+  push:
+  pull_request:
+  schedule:
+    - cron: '23 5 * * 1'
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Initialize local CI config
+        run: ./scripts/init.sh
+      - name: Require committed digest lock
+        run: |
+          test -f images.lock.env || { echo 'Run scripts/lock-images.sh and commit images.lock.env first'; exit 1; }
+          python3 - <<'PY'
+          import re
+          from pathlib import Path
+          values = dict(line.split('=', 1) for line in Path('images.lock.env').read_text().splitlines() if line and not line.startswith('#'))
+          for key in ['GO_IMAGE', 'STATIC_IMAGE', 'NGINX_IMAGE', 'TRIVY_IMAGE']:
+              assert re.fullmatch(r'[^\s]+@sha256:[a-f0-9]{64}', values[key]), key
+          PY
+      - name: Build both runtime images (includes Go tests)
+        run: ./scripts/compose.sh build --pull
+      - name: Test UI and NGINX configuration
+        run: ./scripts/test.sh
+      - name: Start stack
+        run: ./scripts/compose.sh up -d --wait --wait-timeout 120
+      - name: Integration smoke test
+        run: ./scripts/smoke.sh
+      - name: Scan runtime images and generate SBOMs
+        run: ./scripts/scan.sh
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vulnerability-reports
+          path: |
+            artifacts/*-trivy.json
+            artifacts/*-sbom.cdx.json
+          if-no-files-found: ignore
+      - name: Shutdown
+        if: always()
+        run: ./scripts/compose.sh down
