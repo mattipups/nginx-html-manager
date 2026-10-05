@@ -1,0 +1,45 @@
+# Build and push BOTH images to your registry before cluster installation.
+image:
+  backend: {repository: local/html-manager, tag: "1.0.2", digest: ""}
+  nginx: {repository: local/html-manager-nginx, tag: "1.0.2", digest: ""}
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+config:
+  adminUser: admin
+  adminOrigin: http://localhost:8080
+  publicUrl: http://localhost:8081
+  maxUploadBytes: 5242880
+  maxPages: 500
+auth:
+  # Must already exist in the release namespace. No password stored in Helm values.
+  existingSecret: html-manager-admin
+  passwordKey: admin_password
+persistence:
+  size: 5Gi
+  # null = cluster default; "" = no StorageClass; string = explicit class.
+  storageClass: null
+  accessModes: [ReadWriteOnce]
+  existingClaim: ""
+  # Retain PVC on uninstall; manual cleanup remains the operator's responsibility.
+  keep: true
+service:
+  type: ClusterIP
+  adminPort: 8080
+  publicPort: 8081
+ingress:
+  enabled: false
+  className: ""
+  adminHost: ""
+  publicHost: ""
+  annotations: {}
+  tls: []
+resources:
+  backend:
+    requests: {cpu: 50m, memory: 64Mi}
+    limits: {cpu: "1", memory: 192Mi}
+  nginx:
+    requests: {cpu: 25m, memory: 32Mi}
+    limits: {cpu: "1", memory: 128Mi}
+nodeSelector: {}
+tolerations: []
+affinity: {}

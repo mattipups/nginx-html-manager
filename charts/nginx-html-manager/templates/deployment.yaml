@@ -1,0 +1,86 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  labels: {app.kubernetes.io/instance: {{ .Release.Name | quote }}}
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app.kubernetes.io/instance: {{ .Release.Name | quote }}}
+  template:
+    metadata:
+      labels: {app.kubernetes.io/instance: {{ .Release.Name | quote }}}
+      annotations:
+        checksum/nginx: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/settings: {{ toJson (dict "config" .Values.config "auth" .Values.auth) | sha256sum }}
+    spec:
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile: {type: RuntimeDefault}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{ toJson . }}
+      {{- end }}
+      initContainers:
+        - name: init-storage
+          image: {{ include "html.image" .Values.image.backend | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: [init-storage]
+          env: [{name: DATA_DIR, value: /data}]
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          resources: {{ toJson .Values.resources.backend }}
+          volumeMounts: [{name: data, mountPath: /data}]
+      containers:
+        - name: backend
+          image: {{ include "html.image" .Values.image.backend | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports: [{name: backend, containerPort: 8080}]
+          env:
+            - {name: DATA_DIR, value: /data}
+            - {name: ADMIN_PASSWORD_FILE, value: /run/secrets/admin_password}
+            - {name: ADMIN_USER, value: {{ .Values.config.adminUser | quote }}}
+            - {name: ADMIN_ORIGIN, value: {{ .Values.config.adminOrigin | quote }}}
+            - {name: PUBLIC_URL, value: {{ .Values.config.publicUrl | quote }}}
+            - {name: MAX_UPLOAD_BYTES, value: {{ .Values.config.maxUploadBytes | int | quote }}}
+            - {name: MAX_PAGES, value: {{ .Values.config.maxPages | int | quote }}}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          resources: {{ toJson .Values.resources.backend }}
+          startupProbe: {exec: {command: [/app/server, healthcheck]}, periodSeconds: 2, failureThreshold: 30}
+          readinessProbe: {exec: {command: [/app/server, healthcheck]}, periodSeconds: 5}
+          livenessProbe: {exec: {command: [/app/server, healthcheck]}, periodSeconds: 15}
+          volumeMounts:
+            - {name: data, mountPath: /data}
+            - {name: password, mountPath: /run/secrets, readOnly: true}
+        - name: nginx
+          image: {{ include "html.image" .Values.image.nginx | quote }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports: [{name: admin, containerPort: 8082}, {name: public, containerPort: 8081}]
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          resources: {{ toJson .Values.resources.nginx }}
+          readinessProbe: {httpGet: {path: /readyz, port: admin}, periodSeconds: 5}
+          livenessProbe: {httpGet: {path: /readyz, port: admin}, periodSeconds: 15}
+          volumeMounts:
+            - {name: data, mountPath: /srv/pages, subPath: public, readOnly: true}
+            - {name: nginx-config, mountPath: /etc/nginx/nginx.conf, subPath: nginx.conf, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: data
+          persistentVolumeClaim: {claimName: {{ include "html.claim" . | quote }}}
+        - name: password
+          secret:
+            secretName: {{ .Values.auth.existingSecret | quote }}
+            defaultMode: 0444
+            items: [{key: {{ .Values.auth.passwordKey | quote }}, path: admin_password}]
+        - name: nginx-config
+          configMap: {name: {{ .Release.Name }}-nginx}
+        - name: tmp
+          emptyDir: {sizeLimit: 64Mi}
+      nodeSelector: {{ toJson .Values.nodeSelector }}
+      tolerations: {{ toJson .Values.tolerations }}
+      affinity: {{ toJson .Values.affinity }}

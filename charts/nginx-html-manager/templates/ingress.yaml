@@ -1,0 +1,34 @@
+{{- if .Values.ingress.enabled }}
+{{- if eq .Values.ingress.adminHost .Values.ingress.publicHost }}
+{{- fail "ingress adminHost and publicHost must differ" }}
+{{- end }}
+{{- if ne .Values.config.adminOrigin (printf "https://%s" .Values.ingress.adminHost) }}
+{{- fail "ingress requires config.adminOrigin=https://<adminHost>" }}
+{{- end }}
+{{- if ne .Values.config.publicUrl (printf "https://%s" .Values.ingress.publicHost) }}
+{{- fail "ingress requires config.publicUrl=https://<publicHost>" }}
+{{- end }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ .Release.Name }}
+  annotations: {{ toJson .Values.ingress.annotations }}
+spec:
+  {{- if .Values.ingress.className }}
+  ingressClassName: {{ .Values.ingress.className | quote }}
+  {{- end }}
+  tls: {{ toJson .Values.ingress.tls }}
+  rules:
+    - host: {{ required "ingress.adminHost required" .Values.ingress.adminHost | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: {service: {name: {{ .Release.Name }}, port: {name: admin}}}
+    - host: {{ required "ingress.publicHost required" .Values.ingress.publicHost | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend: {service: {name: {{ .Release.Name }}, port: {name: public}}}
+{{- end }}
