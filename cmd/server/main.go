@@ -34,7 +34,7 @@ import (
 var web embed.FS
 
 var idRE = regexp.MustCompile(`^[a-f0-9]{32}$`)
-var htmlRE = regexp.MustCompile(`(?i)<(?:!doctype\s+html\b|html(?:\s|>))`)
+var htmlRE = regexp.MustCompile(`(?i)<(?:!doctype\s+html\b|html(?:\\s|>))`)
 
 type page struct {
 	ID             string          `json:"id"`
@@ -338,7 +338,6 @@ func (a *app) handler() http.Handler {
 			return
 		}
 
-		// Öffentlicher Access-Check Endpoint für NGINX
 		if strings.HasPrefix(r.URL.Path, "/verify-access") && r.Method == http.MethodGet {
 			a.checkPublicAccess(w, r)
 			return
