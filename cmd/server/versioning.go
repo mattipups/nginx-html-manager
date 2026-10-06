@@ -1,14 +1,10 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 )
@@ -79,11 +75,21 @@ func (vm *VersionManager) UpdateContent(id string, reader io.Reader, filename st
 		return nil, err
 	}
 
-	// Symlink oder aktiven Stand aktualisieren
-	activePath := filepath.Join(vm.dataDir, "current", id)
+	activeDir := filepath.Join(vm.dataDir, "current")
+	if err := os.MkdirAll(activeDir, 0755); err != nil {
+		return nil, err
+	}
+	activePath := filepath.Join(activeDir, id)
 	_ = os.Remove(activePath)
 	if err := os.Link(destPath, activePath); err != nil {
-		return nil, err
+		// Fallback auf Kopie, falls Link über Partitionen fehlschlägt
+		content, readErr := os.ReadFile(destPath)
+		if readErr != nil {
+			return nil, err
+		}
+		if writeErr := os.WriteFile(activePath, content, 0644); writeErr != nil {
+			return nil, writeErr
+		}
 	}
 
 	meta.CurrentVersion = nextVersion
@@ -119,10 +125,20 @@ func (vm *VersionManager) Rollback(id string, targetVersion int) (*ManagedFileMe
 	}
 
 	histPath := filepath.Join(vm.dataDir, "history", id, fmt.Sprintf("v%d", targetVersion), found.Filename)
-	activePath := filepath.Join(vm.dataDir, "current", id)
+	activeDir := filepath.Join(vm.dataDir, "current")
+	if err := os.MkdirAll(activeDir, 0755); err != nil {
+		return nil, err
+	}
+	activePath := filepath.Join(activeDir, id)
 	_ = os.Remove(activePath)
 	if err := os.Link(histPath, activePath); err != nil {
-		return nil, err
+		content, readErr := os.ReadFile(histPath)
+		if readErr != nil {
+			return nil, err
+		}
+		if writeErr := os.WriteFile(activePath, content, 0644); writeErr != nil {
+			return nil, writeErr
+		}
 	}
 
 	meta.CurrentVersion = targetVersion
