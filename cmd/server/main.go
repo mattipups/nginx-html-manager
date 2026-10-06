@@ -93,6 +93,10 @@ func (a *app) renderPublicIndex() error {
 	if err != nil {
 		return err
 	}
+	logoPicture, err := publicLogoPicture()
+	if err != nil {
+		return err
+	}
 	var b strings.Builder
 	b.WriteString(`<!doctype html>
 <html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -103,6 +107,8 @@ func (a *app) renderPublicIndex() error {
 *{box-sizing:border-box}body{margin:0;font:16px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f1f5f9;color:#172033}
 main{max-width:1100px;margin:36px auto;padding:0 20px}
 header{margin-bottom:24px}
+.brand{display:block;max-width:360px}
+.brand img{display:block;width:100%;height:auto}
 h1{font-size:clamp(24px,4vw,36px);margin:8px 0;font-weight:700}
 .eyebrow{font-size:12px;letter-spacing:.15em;color:#2563eb;font-weight:700;text-transform:uppercase;margin:0}
 section{background:#fff;border:1px solid #dce3ec;border-radius:14px;padding:24px;margin:24px 0;box-shadow:0 1px 3px rgba(0,0,0,0.05)}
@@ -146,7 +152,9 @@ footer{color:#9ca3af}
 <body>
 <main>
 <header>
-<p class="eyebrow">NGINX · HTML-PUBLISHER · 1.4.0</p>
+`)
+	b.WriteString(logoPicture)
+	b.WriteString(`<p class="eyebrow">NGINX · HTML-PUBLISHER · 1.5.0</p>
 <h1>Veröffentlichte Seiten</h1>
 </header>
 <section>

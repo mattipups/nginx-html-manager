@@ -10,8 +10,8 @@ import (
 func TestBranding(t *testing.T) {
     a := testApp(t)
     for path, expected := range map[string]string{
-        "/logo-light.png":"aa87f905f73598ba76028383de05f9c79adb05d3f84a24a7f5d208a3188f4a43",
-        "/logo-dark.png":"2fdfecd747e48484b7d759ce8e1352721f3b01de520852ee5987479233f6a824",
+        "/logo-light.png":"d98ccc9779f2c9bf0f8155bec14784952c9954484ae353824bcb345a41eb3fa3",
+        "/logo-dark.png":"d529c003aff01ff22a4fe27f363b57c9770eb2abd7e89b5276fecc8e9feacd09",
     } {
         if w := request(a,"GET",path,"","","",false); w.Code != 401 { t.Fatalf("unauthenticated %s: %d",path,w.Code) }
         w := request(a,"GET",path,"","","",true)

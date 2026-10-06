@@ -7,7 +7,7 @@ mkdir -p artifacts
 severity=${TRIVY_SEVERITY:-UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL}
 result=0
 for name in backend nginx; do
-  if [[ $name == backend ]]; then image=local/html-manager:1.4.0; else image=local/html-manager-nginx:1.4.0; fi
+  if [[ $name == backend ]]; then image=local/html-manager:1.5.0; else image=local/html-manager-nginx:1.5.0; fi
   archive="artifacts/${name}.tar"
   docker save "$image" -o "$archive"
   chmod 644 "$archive"
