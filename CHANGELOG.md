@@ -2,6 +2,7 @@
 
 ## 1.4.0 — 2026-10-06
 
+- **Design-Angleichung Port 8081**: Öffentliche Link-Übersicht (`http://localhost:8081/`) vollständig an das Design der Backend-UI angepasst (identisches Styling, Typografie, Tabellen-Layout, Profil-Badges, Suchfilter sowie automatischer Hell-/Dunkelmodus).
 - **Origin-Isolation**: Echte Trennung von LocalStorage und Cookies durch app-spezifische Subdomains (`<slug>.localhost:8081` bzw. `https://<slug>.pages.example.test/`) gemäß OWASP-Empfehlungen.
 - **Sicherheitsprofile**:
   - `Statisch`: Kein JavaScript, keine Netzwerkaufrufe (`default-src 'none'`).
