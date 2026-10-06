@@ -27,7 +27,6 @@ data:
       uwsgi_temp_path /tmp/uwsgi_temp;
       scgi_temp_path /tmp/scgi_temp;
       limit_req_zone $binary_remote_addr zone=admin:10m rate=5r/s;
-      # Pods share networking: Go occupies 8080; admin NGINX uses 8082.
       server {
         listen 8082;
         server_name _;
@@ -46,34 +45,49 @@ data:
       }
       server {
         listen 8081;
+        server_name ~^(?<app_slug>[^.]+)\.localhost$ ~^(?<app_slug>[^.]+)\.pages\..+$;
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "DENY" always;
+        add_header Referrer-Policy "no-referrer" always;
+        add_header Cache-Control "no-store" always;
+        add_header Content-Security-Policy "sandbox allow-scripts allow-same-origin allow-downloads allow-modals allow-popups allow-popups-to-escape-sandbox; default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src https:; base-uri 'none'; form-action 'none'; frame-src 'none'; object-src 'none'; frame-ancestors 'none'" always;
+        location = / {
+          alias /srv/pages/$app_slug.html;
+          default_type text/html;
+          charset utf-8;
+        }
+        location ~ "^/pages/([a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?)\.html$" {
+          alias /srv/pages/$1.html;
+          default_type text/html;
+          charset utf-8;
+        }
+      }
+      server {
+        listen 8081 default_server;
         server_name {{ .Values.config.publicHost | default "_" }};
         add_header X-Content-Type-Options "nosniff" always;
         add_header X-Frame-Options "DENY" always;
         add_header Referrer-Policy "no-referrer" always;
         add_header Cache-Control "no-store" always;
         add_header Content-Security-Policy "sandbox allow-scripts allow-same-origin allow-downloads allow-modals allow-popups allow-popups-to-escape-sandbox; default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src https:; base-uri 'none'; form-action 'none'; frame-src 'none'; object-src 'none'; frame-ancestors 'none'" always;
-        autoindex on;
-        autoindex_exact_size off;
-        autoindex_localtime on;
-
         location / {
           root /srv/pages;
+          index index.html;
           autoindex on;
           autoindex_exact_size off;
           autoindex_localtime on;
           default_type text/html;
           charset utf-8;
         }
-
         location = /pages/ {
           alias /srv/pages/;
+          index index.html;
           autoindex on;
           autoindex_exact_size off;
           autoindex_localtime on;
           default_type text/html;
           charset utf-8;
         }
-
         location ~ "^/pages/([a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?)\.html$" {
           alias /srv/pages/$1.html;
           default_type text/html;
