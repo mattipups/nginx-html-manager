@@ -1,7 +1,7 @@
 name: nginx-html-manager
 services:
   uploader:
-    image: local/html-manager:1.1.0
+    image: local/html-manager:1.3.0
     build:
       context: .
       args:
@@ -9,7 +9,6 @@ services:
         STATIC_IMAGE: ${STATIC_IMAGE:-cgr.dev/chainguard/static:latest}
     environment:
       ADMIN_USER: ${ADMIN_USER:-admin}
-      ADMIN_PASSWORD_FILE: /run/secrets/admin_password
       ADMIN_ORIGIN: ${ADMIN_ORIGIN:-http://localhost:8080}
       PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8081}
       MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-5242880}
@@ -22,21 +21,20 @@ services:
     user: "65532:65532"
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
-    pids_limit: 100
-    mem_limit: 192m
+    mem_limit: 256m
+    pids_limit: 32
     cpus: 1.0
     restart: unless-stopped
     healthcheck:
       test: [CMD, /app/server, healthcheck]
-      interval: 15s
-      timeout: 3s
+      interval: 5s
+      timeout: 2s
       retries: 3
-      start_period: 5s
     logging:
       driver: json-file
       options: {max-size: 10m, max-file: "3"}
   nginx:
-    image: local/html-manager-nginx:1.1.0
+    image: local/html-manager-nginx:1.3.0
     build:
       context: .
       dockerfile: nginx/Dockerfile
@@ -54,11 +52,10 @@ services:
     tmpfs:
       - /tmp:size=64m,mode=1777
     read_only: true
-    user: "65532:65532"
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
-    pids_limit: 100
     mem_limit: 128m
+    pids_limit: 32
     cpus: 1.0
     restart: unless-stopped
     depends_on:

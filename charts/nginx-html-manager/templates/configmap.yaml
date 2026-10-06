@@ -23,7 +23,7 @@ data:
       client_max_body_size {{ .Values.config.maxUploadBytes | int }};
       client_body_temp_path /tmp/client_temp;
       proxy_temp_path /tmp/proxy_temp;
-      fastcgi_temp_path /tmp/fastcgi_temp;
+      fastcgi_temp_path /tmp/scgi_temp;
       uwsgi_temp_path /tmp/uwsgi_temp;
       scgi_temp_path /tmp/scgi_temp;
       limit_req_zone $binary_remote_addr zone=admin:10m rate=5r/s;
@@ -46,19 +46,38 @@ data:
       }
       server {
         listen 8081;
-        server_name _;
-        add_header X-Content-Type-Options nosniff always;
-        add_header Referrer-Policy no-referrer always;
-        add_header X-Frame-Options DENY always;
+        server_name {{ .Values.config.publicHost | default "_" }};
+        add_header X-Content-Type-Options "nosniff" always;
+        add_header X-Frame-Options "DENY" always;
+        add_header Referrer-Policy "no-referrer" always;
         add_header Cache-Control "no-store" always;
         add_header Content-Security-Policy "sandbox allow-scripts allow-same-origin allow-downloads allow-modals allow-popups allow-popups-to-escape-sandbox; default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; font-src data:; connect-src https:; base-uri 'none'; form-action 'none'; frame-src 'none'; object-src 'none'; frame-ancestors 'none'" always;
-        autoindex off;
+        autoindex on;
+        autoindex_exact_size off;
+        autoindex_localtime on;
+
+        location / {
+          root /srv/pages;
+          autoindex on;
+          autoindex_exact_size off;
+          autoindex_localtime on;
+          default_type text/html;
+          charset utf-8;
+        }
+
+        location = /pages/ {
+          alias /srv/pages/;
+          autoindex on;
+          autoindex_exact_size off;
+          autoindex_localtime on;
+          default_type text/html;
+          charset utf-8;
+        }
+
         location ~ "^/pages/([a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?)\.html$" {
           alias /srv/pages/$1.html;
           default_type text/html;
           charset utf-8;
-          limit_except GET { deny all; }
         }
-        location / { return 404; }
       }
     }

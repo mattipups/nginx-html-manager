@@ -19,9 +19,10 @@ trap cleanup EXIT
 curl --fail --silent --show-error "$public/pages/$id.html" -o "$download"
 cmp "$fixture" "$download"
 code=$(curl --silent -o /dev/null -w '%{http_code}' "$public/")
-[[ $code == 404 ]]
+[[ $code == 200 ]]
+curl --fail --silent --show-error "$public/" | grep -q "$id.html"
 headers=$(curl --fail --silent --show-error -I "$public/pages/$id.html")
 grep -qi 'Content-Security-Policy: sandbox allow-scripts allow-same-origin allow-downloads allow-modals' <<< "$headers"
 grep -qi "script-src 'unsafe-inline'" <<< "$headers"
 grep -qi 'connect-src https:' <<< "$headers"
-printf 'Upload, bytegleiche Auslieferung, interaktive CSP und gesperrter Root-Pfad erfolgreich.\n'
+printf 'Upload, bytegleiche Auslieferung, interaktive CSP und Link-Übersicht auf Port 8081 erfolgreich.\n'
