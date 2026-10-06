@@ -45,7 +45,7 @@ data:
       }
       server {
         listen 8081;
-        server_name "~^(?<app_slug>[a-z0-9]([a-z0-9-]*[a-z0-9])?)\.(localhost|pages\..+)$";
+        server_name ~^(?<app_slug>[^.]+)\.localhost$ ~^(?<app_slug>[^.]+)\.pages\..+$;
         add_header X-Content-Type-Options "nosniff" always;
         add_header X-Frame-Options "DENY" always;
         add_header Referrer-Policy "no-referrer" always;
