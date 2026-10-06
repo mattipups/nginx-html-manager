@@ -1,8 +1,11 @@
 package main
 
 import (
+    "encoding/base64"
+    "fmt"
     "net/http"
     "strconv"
+    "strings"
 
     favicons "example.com/nginx-html-manager/logo/favicons"
 )
@@ -33,4 +36,27 @@ func serveFavicon(w http.ResponseWriter, r *http.Request) bool {
     w.WriteHeader(http.StatusOK)
     if r.Method != http.MethodHead { _, _ = w.Write(data) }
     return true
+}
+
+// Inline the same assets on the public origin without relaxing its image CSP.
+func publicFaviconLinks() (string, error) {
+    var links strings.Builder
+    for _, icon := range []struct{ path, sizes string }{
+        {"/favicon.ico", ""},
+        {"/favicon-16.png", "16x16"},
+        {"/favicon-32.png", "32x32"},
+        {"/favicon-48.png", "48x48"},
+    } {
+        asset := faviconFiles[icon.path]
+        data, err := favicons.Assets.ReadFile(asset.name)
+        if err != nil {
+            return "", fmt.Errorf("read public favicon %s: %w", asset.name, err)
+        }
+        fmt.Fprintf(&links, `<link rel="icon" href="data:%s;base64,%s" type="%s"`, asset.contentType, base64.StdEncoding.EncodeToString(data), asset.contentType)
+        if icon.sizes != "" {
+            fmt.Fprintf(&links, ` sizes="%s"`, icon.sizes)
+        }
+        links.WriteString(">\n")
+    }
+    return links.String(), nil
 }

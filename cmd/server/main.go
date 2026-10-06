@@ -89,11 +89,17 @@ func (a *app) renderPublicIndex() error {
 	if err != nil {
 		return err
 	}
+	faviconLinks, err := publicFaviconLinks()
+	if err != nil {
+		return err
+	}
 	var b strings.Builder
 	b.WriteString(`<!doctype html>
 <html lang="de"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Veröffentlichte Seiten · NGINX HTML Manager</title>
-<style>
+`)
+	b.WriteString(faviconLinks)
+	b.WriteString(`<style>
 *{box-sizing:border-box}body{margin:0;font:16px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:#f1f5f9;color:#172033}
 main{max-width:1100px;margin:36px auto;padding:0 20px}
 header{margin-bottom:24px}

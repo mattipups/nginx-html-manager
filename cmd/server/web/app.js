@@ -11,6 +11,24 @@ async function api(path, options = {}) {
   }
   return response.status === 204 ? null : response.json();
 }
+function profileLabel(profile) {
+  switch (profile) {
+    case "static": return "Statisch";
+    case "interactive-local": return "Interaktiv lokal";
+    case "interactive-api": return "Interaktiv mit API";
+    case undefined:
+    case null:
+    case "": return "Nicht hinterlegt (Altbestand)";
+    default: return `Unbekannt (${profile})`;
+  }
+}
+function profileBadgeClass(profile) {
+  switch (profile) {
+    case "interactive-local": return "badge-interactive";
+    case "interactive-api": return "badge-api";
+    default: return "badge-static";
+  }
+}
 function render() {
   const query = $("search").value.toLocaleLowerCase("de");
   const selected = pages.filter(p => p.name.toLocaleLowerCase("de").includes(query));
@@ -20,6 +38,11 @@ function render() {
     for (const value of [p.name, `${(p.size / 1024).toFixed(1)} KiB`, new Date(p.created).toLocaleString("de-DE")]) {
       const cell = document.createElement("td"); cell.textContent = value; row.append(cell);
     }
+    const profileCell = document.createElement("td");
+    const badge = document.createElement("span");
+    badge.className = `badge ${profileBadgeClass(p.profile)}`;
+    badge.textContent = profileLabel(p.profile);
+    profileCell.append(badge); row.append(profileCell);
     const actions = document.createElement("td");
     const link = document.createElement("a");
     link.textContent = "Öffnen"; link.className = "action"; link.href = p.url;
