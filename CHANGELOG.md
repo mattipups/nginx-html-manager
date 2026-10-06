@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.4.0 — 2026-10-06
+
+- **Origin-Isolation**: Echte Trennung von LocalStorage und Cookies durch app-spezifische Subdomains (`<slug>.localhost:8081` bzw. `https://<slug>.pages.example.test/`) gemäß OWASP-Empfehlungen.
+- **Sicherheitsprofile**:
+  - `Statisch`: Kein JavaScript, keine Netzwerkaufrufe (`default-src 'none'`).
+  - `Interaktiv lokal`: Lokale Ausführung, Presets im isolierten LocalStorage, keine ausgehenden API-Verbindungen (`connect-src 'none'`).
+  - `Interaktiv mit API`: Volle interaktive Funktionalität mit gezielt freigegebenen HTTPS-API-Zielhosts.
+- **NGINX Wildcard-Routing**: Dynamische Auslieferung über dedizierte Virtual Hosts mit profilabhängiger CSP.
+- **Helm Ingress**: Unterstützung von Wildcard-Hosts (`*.pages.example.test`) für clusterweite Ursprungsisolation.
+- **GUI & Backend**: Profilauswahl beim Upload und Anzeige des isolierten Subdomain-Links in der Oberfläche.
+
 ## 1.3.0 — 2026-10-06
 
 - Liste der verfügbaren Seiten-Links auf Port 8081 bereitgestellt (Autoindex unter `/` und `/pages/`).
