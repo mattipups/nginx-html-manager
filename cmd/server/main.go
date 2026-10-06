@@ -37,15 +37,23 @@ var idRE = regexp.MustCompile(`^[a-f0-9]{32}$`)
 var htmlRE = regexp.MustCompile(`(?i)<(?:!doctype\s+html\b|html(?:\s|>))`)
 
 type page struct {
-	ID           string          `json:"id"`
-	Name         string          `json:"name"`
-	Size         int64           `json:"size"`
-	SHA256       string          `json:"sha256"`
-	Created      time.Time       `json:"created"`
-	URL          string          `json:"url"`
-	Slug         string          `json:"slug,omitempty"`
-	CanonicalURL string          `json:"canonicalUrl"`
-	Profile      SecurityProfile `json:"profile,omitempty"`
+	ID             string          `json:"id"`
+	Name           string          `json:"name"`
+	Size           int64           `json:"size"`
+	SHA256         string          `json:"sha256"`
+	Created        time.Time       `json:"created"`
+	URL            string          `json:"url"`
+	Slug           string          `json:"slug,omitempty"`
+	CanonicalURL   string          `json:"canonicalUrl"`
+	Profile        SecurityProfile `json:"profile,omitempty"`
+	CurrentVersion int             `json:"currentVersion,omitempty"`
+	Versions       []PageVersion   `json:"versions,omitempty"`
+	Title          string          `json:"title,omitempty"`
+	Description    string          `json:"description,omitempty"`
+	Tags           []string        `json:"tags,omitempty"`
+	Redirects      []string        `json:"redirects,omitempty"`
+	Visibility     Visibility      `json:"visibility,omitempty"`
+	AllowedGroups  []string        `json:"allowedGroups,omitempty"`
 }
 
 type app struct {
@@ -76,8 +84,12 @@ func validOrigin(raw string) bool {
 	return err == nil && (u.Scheme == "http" || u.Scheme == "https") && u.Host != "" && u.User == nil && u.Path == "" && u.RawQuery == "" && u.Fragment == ""
 }
 
+func urlPathUnescape(s string) (string, error) {
+	return url.PathUnescape(s)
+}
+
 func initStorage(dir string) error {
-	for _, name := range []string{"public", "meta"} {
+	for _, name := range []string{"public", "meta", "versions"} {
 		if err := os.MkdirAll(filepath.Join(dir, name), 0755); err != nil {
 			return err
 		}
@@ -147,7 +159,9 @@ footer{color:#9ca3af}
 <body>
 <main>
 <header>
-`)\n\tb.WriteString(logoPicture)\n\tb.WriteString(`<p class="eyebrow">NGINX · HTML-PUBLISHER · 1.5.0</p>
+`)
+	b.WriteString(logoPicture)
+	b.WriteString(`<p class="eyebrow">NGINX · HTML-PUBLISHER · 1.5.0</p>
 <h1>Veröffentlichte Seiten</h1>
 </header>
 <section>
@@ -158,7 +172,31 @@ footer{color:#9ca3af}
 <div class="table-wrap">
 <table>
 <thead><tr><th>Datei / Link</th><th>Profil</th><th>Größe</th><th>Datum (UTC)</th><th>Aktion</th></tr></thead>
-<tbody id="page-list">`)\n\tfor _, p := range pages {\n\t\ttargetFile := p.ID + ".html"\n\t\tlinkURL := "/pages/" + targetFile\n\t\tdisplayName := p.Name\n\t\tif p.Slug != "" {\n\t\t\tlinkURL = "/pages/" + p.Slug + ".html"\n\t\t\tdisplayName = p.Slug + " (" + p.Name + ")"\n\t\t}\n\t\tsizeStr := fmt.Sprintf("%.1f KiB", float64(p.Size)/1024.0)\n\t\tbadgeClass := "badge-static"\n\t\tbadgeLabel := "Statisch"\n\t\tif p.Profile == ProfileInteractive {\n\t\t\tbadgeClass = "badge-interactive"\n\t\t\tbadgeLabel = "Interaktiv"\n\t\t} else if p.Profile == ProfileAPIEnabled {\n\t\t\tbadgeClass = "badge-api"\n\t\t\tbadgeLabel = "Interaktiv (API)"\n\t\t}\n\t\tb.WriteString(fmt.Sprintf(`<tr><td><strong><a href="%s">%s</a></strong></td><td><span class="badge %s">%s</span></td><td>%s</td><td>%s</td><td><a class="action" href="%s">Öffnen</a></td></tr>`,\n\t\t\tlinkURL, html.EscapeString(displayName), badgeClass, badgeLabel, sizeStr, p.Created.Format("2006-01-02 15:04"), linkURL))\n\t}\n\tb.WriteString(`</tbody>
+<tbody id="page-list">`)
+	for _, p := range pages {
+		targetFile := p.ID + ".html"
+		linkURL := "/pages/" + targetFile
+		displayName := p.Name
+		if p.Title != "" {
+			displayName = p.Title
+		} else if p.Slug != "" {
+			linkURL = "/pages/" + p.Slug + ".html"
+			displayName = p.Slug + " (" + p.Name + ")"
+		}
+		sizeStr := fmt.Sprintf("%.1f KiB", float64(p.Size)/1024.0)
+		badgeClass := "badge-static"
+		badgeLabel := "Statisch"
+		if p.Profile == ProfileInteractive {
+			badgeClass = "badge-interactive"
+			badgeLabel = "Interaktiv"
+		} else if p.Profile == ProfileAPIEnabled {
+			badgeClass = "badge-api"
+			badgeLabel = "Interaktiv (API)"
+		}
+		b.WriteString(fmt.Sprintf(`<tr><td><strong><a href="%s">%s</a></strong></td><td><span class="badge %s">%s</span></td><td>%s</td><td>%s</td><td><a class="action" href="%s">Öffnen</a></td></tr>`,
+			linkURL, html.EscapeString(displayName), badgeClass, badgeLabel, sizeStr, p.Created.Format("2006-01-02 15:04"), linkURL))
+	}
+	b.WriteString(`</tbody>
 </table>
 </div>
 </section>
@@ -174,4 +212,453 @@ function filterTable(){
 </script>
 </main>
 </body>
-</html>`)\n\n\treturn atomicWrite(filepath.Join(a.dir, "public"), "index.html", []byte(b.String()))\n}\n\nfunc main() {\n\tif len(os.Args) > 1 && os.Args[1] == "init-storage" {\n\t\tif err := initStorage(env("DATA_DIR", "/data")); err != nil {\n\t\t\tlog.Fatal(err)\n\t\t}\n\t\treturn\n\t}\n\tif len(os.Args) > 1 && os.Args[1] == "healthcheck" {\n\t\tc := http.Client{Timeout: 2 * time.Second}\n\t\tr, err := c.Get("http://127.0.0.1:8080/healthz")\n\t\tif err != nil {\n\t\t\tos.Exit(1)\n\t\t}\n\t\tdefer r.Body.Close()\n\t\tif r.StatusCode != 200 {\n\t\t\tos.Exit(1)\n\t\t}\n\t\treturn\n\t}\n\tif len(os.Args) > 1 && (os.Args[1] == "verify-storage" || os.Args[1] == "check-storage") {\n\t\tdir := env("DATA_DIR", "/data")\n\t\tfix := false\n\t\tconfirm := false\n\t\tfor _, arg := range os.Args[2:] {\n\t\t\tswitch arg {\n\t\t\tcase "--fix", "-f":\n\t\t\t\tfix = true\n\t\t\tcase "--yes", "-y", "--confirm":\n\t\t\t\tconfirm = true\n\t\t\t}\n\t\t}\n\t\treport, err := runStorageCheck(dir, fix, confirm, os.Stdin, os.Stdout)\n\t\tif err != nil {\n\t\t\tlog.Fatalf("Speicherprüfung fehlgeschlagen: %v", err)\n\t\t}\n\t\tif report.HasErrors() && !fix {\n\t\t\tos.Exit(1)\n\t\t}\n\t\treturn\n\t}\n\tpassword, err := os.ReadFile(env("ADMIN_PASSWORD_FILE", "/run/secrets/admin_password"))\n\tif err != nil {\n\t\tlog.Fatal("cannot read administrator password file")\n\t}\n\tsecret := strings.TrimRight(string(password), "\r\n")\n\tif len(secret) < 16 {\n\t\tlog.Fatal("administrator password must contain at least 16 bytes")\n\t}\n\ta := &app{\n\t\tdir:         env("DATA_DIR", "/data"),\n\t\tuser:        env("ADMIN_USER", "admin"),\n\t\tpassword:    secret,\n\t\torigin:      env("ADMIN_ORIGIN", "http://localhost:8080"),\n\t\tpublicURL:   env("PUBLIC_URL", "http://localhost:8081"),\n\t\tmaxBytes:    positive("MAX_UPLOAD_BYTES", 5*1024*1024),\n\t\tmaxPages:    int(positive("MAX_PAGES", 500)),\n\t\tuploadSlots: make(chan struct{}, 1),\n\t}\n\tif !validOrigin(a.origin) || !validOrigin(a.publicURL) || a.origin == a.publicURL {\n\t\tlog.Fatal("ADMIN_ORIGIN and PUBLIC_URL must be distinct origins without trailing slash")\n\t}\n\tif err := initStorage(a.dir); err != nil {\n\t\tlog.Fatal(err)\n\t}\n\t_ = a.renderPublicIndex()\n\n\tserver := &http.Server{\n\t\tAddr:              ":8080",\n\t\tHandler:           a.handler(),\n\t\tReadHeaderTimeout: 5 * time.Second,\n\t\tReadTimeout:       30 * time.Second,\n\t\tWriteTimeout:      30 * time.Second,\n\t\tIdleTimeout:       60 * time.Second,\n\t\tMaxHeaderBytes:    16 * 1024,\n\t}\n\tctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)\n\tdefer stop()\n\tgo func() {\n\t\t<-ctx.Done()\n\t\tshutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)\n\t\tdefer cancel()\n\t\tif err := server.Shutdown(shutdown); err != nil {\n\t\t\tlog.Printf("shutdown: %v", err)\n\t\t}\n\t}()\n\tlog.Print("HTML manager listening on :8080")\n\tif err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {\n\t\tlog.Fatal(err)\n\t}\n}\n\nfunc jsonReply(w http.ResponseWriter, code int, v any) {\n\tw.Header().Set("Content-Type", "application/json; charset=utf-8")\n\tw.WriteHeader(code)\n\t_ = json.NewEncoder(w).Encode(v)\n}\n\nfunc fail(w http.ResponseWriter, code int, message string) {\n\tjsonReply(w, code, map[string]string{"error": message})\n}\n\nfunc equal(a, b string) bool {\n\tx, y := sha256.Sum256([]byte(a)), sha256.Sum256([]byte(b))\n\treturn subtle.ConstantTimeCompare(x[:], y[:]) == 1\n}\n\nfunc (a *app) handler() http.Handler {\n\treturn http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {\n\t\tw.Header().Set("X-Content-Type-Options", "nosniff")\n\t\tw.Header().Set("Referrer-Policy", "no-referrer")\n\t\tw.Header().Set("Cache-Control", "no-store")\n\t\tw.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'")\n\t\tif serveFavicon(w, r) {\n\t\t\treturn\n\t\t}\n\t\tif r.URL.Path == "/healthz" && r.Method == http.MethodGet {\n\t\t\tw.WriteHeader(200)\n\t\t\t_, _ = w.Write([]byte("ok\n"))\n\t\t\treturn\n\t\t}\n\t\tuser, pass, ok := r.BasicAuth()\n\t\tvalidUser, validPass := equal(user, a.user), equal(pass, a.password)\n\t\tif !ok || !validUser || !validPass {\n\t\t\tw.Header().Set("WWW-Authenticate", `Basic realm="HTML-Verwaltung", charset="UTF-8"`)\n\t\t\tfail(w, 401, "Anmeldung erforderlich")\n\t\t\treturn\n\t\t}\n\t\tif r.Method != http.MethodGet && r.Method != http.MethodHead && r.Header.Get("Origin") != a.origin {\n\t\t\tfail(w, 403, "Origin nicht erlaubt")\n\t\t\treturn\n\t\t}\n\t\tswitch {\n\t\tcase r.URL.Path == "/api/pages" && r.Method == http.MethodGet:\n\t\t\ta.mu.Lock()\n\t\t\tdefer a.mu.Unlock()\n\t\t\tpages, err := a.list()\n\t\t\tif err != nil {\n\t\t\t\tfail(w, 500, "Dateiliste konnte nicht geladen werden")\n\t\t\t\treturn\n\t\t\t}\n\t\t\tjsonReply(w, 200, pages)\n\t\tcase r.URL.Path == "/api/upload" && r.Method == http.MethodPost:\n\t\t\ta.upload(w, r)\n\t\tcase strings.HasPrefix(r.URL.Path, "/api/pages/") && strings.HasSuffix(r.URL.Path, "/link") && r.Method == http.MethodPut:\n\t\t\ta.changeLink(w, r)\n\t\tcase strings.HasPrefix(r.URL.Path, "/api/pages/") && strings.HasSuffix(r.URL.Path, "/download") && (r.Method == http.MethodGet || r.Method == http.MethodHead):\n\t\t\ta.download(w, r)\n\t\tcase strings.HasPrefix(r.URL.Path, "/api/pages/") && r.Method == http.MethodDelete:\n\t\t\ta.remove(w, r)\n\t\tcase (r.URL.Path == "/logo-light.png" || r.URL.Path == "/logo-dark.png") && (r.Method == http.MethodGet || r.Method == http.MethodHead):\n\t\t\tname := map[string]string{"/logo-light.png": "builder-light-1400x700.png", "/logo-dark.png": "builder-dark-1400x700.png"}[r.URL.Path]\n\t\t\tdata, err := branding.Assets.ReadFile(name)\n\t\t\tif err != nil {\n\t\t\t\tfail(w, 500, "Logo nicht verfügbar")\n\t\t\t\treturn\n\t\t\t}\n\t\t\tw.Header().Set("Content-Type", "image/png")\n\t\t\tw.WriteHeader(200)\n\t\t\tif r.Method != http.MethodHead {\n\t\t\t\t_, _ = w.Write(data)\n\t\t\t}\n\t\tcase r.Method == http.MethodGet || r.Method == http.MethodHead:\n\t\t\tname := map[string]string{"/": "index.html", "/app.js": "app.js", "/style.css": "style.css"}[r.URL.Path]\n\t\t\tif name == "" {\n\t\t\t\tfail(w, 404, "Nicht gefunden")\n\t\t\t\treturn\n\t\t\t}\n\t\t\tdata, err := web.ReadFile("web/" + name)\n\t\t\tif err != nil {\n\t\t\t\tfail(w, 500, "Oberfläche nicht verfügbar")\n\t\t\t\treturn\n\t\t\t}\n\t\t\ttypes := map[string]string{"index.html": "text/html; charset=utf-8", "app.js": "text/javascript; charset=utf-8", "style.css": "text/css; charset=utf-8"}\n\t\t\tw.Header().Set("Content-Type", types[name])\n\t\t\tw.WriteHeader(200)\n\t\t\tif r.Method != http.MethodHead {\n\t\t\t\t_, _ = w.Write(data)\n\t\t\t}\n\t\tdefault:\n\t\t\tfail(w, 405, "Methode nicht erlaubt")\n\t\t}\n\t})\n}\n\nfunc (a *app) list() ([]page, error) {\n\tentries, err := os.ReadDir(filepath.Join(a.dir, "meta"))\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tpages := make([]page, 0, len(entries))\n\tfor _, e := range entries {\n\t\tid := strings.TrimSuffix(e.Name(), ".json")\n\t\tif e.IsDir() || !strings.HasSuffix(e.Name(), ".json") || !idRE.MatchString(id) {\n\t\t\tcontinue\n\t\t}\n\t\tdata, err := os.ReadFile(filepath.Join(a.dir, "meta", e.Name()))\n\t\tif err != nil {\n\t\t\treturn nil, err\n\t\t}\n\t\tvar p page\n\t\tif err := json.Unmarshal(data, &p); err != nil || p.ID != id {\n\t\t\treturn nil, fmt.Errorf("invalid metadata: %s", id)\n\t\t}\n\t\tif _, err := os.Stat(filepath.Join(a.dir, "public", id+".html")); errors.Is(err, os.ErrNotExist) {\n\t\t\tcontinue\n\t\t} else if err != nil {\n\t\t\treturn nil, err\n\t\t}\n\t\tif p.Slug != "" && !validSlug(p.Slug) {\n\t\t\treturn nil, fmt.Errorf("invalid slug: %s", id)\n\t\t}\n\t\ta.pageLinks(&p)\n\t\tpages = append(pages, p)\n\t}\n\tsort.Slice(pages, func(i, j int) bool { return pages[i].Created.After(pages[j].Created) })\n\treturn pages, nil\n}\n\nfunc validName(name string) bool {\n\treturn utf8.ValidString(name) && len(name) > 0 && len(name) <= 180 &&\n\t\t!strings.ContainsAny(name, "/\\\x00\r\n") &&\n\t\t(strings.HasSuffix(strings.ToLower(name), ".html") || strings.HasSuffix(strings.ToLower(name), ".htm"))\n}\n\nfunc atomicWrite(dir, name string, data []byte) error {\n\tf, err := os.CreateTemp(dir, ".upload-*")\n\tif err != nil {\n\t\treturn err\n\t}\n\tdefer os.Remove(f.Name())\n\tif err = f.Chmod(0644); err != nil {\n\t\tf.Close()\n\t\treturn err\n\t}\n\tif _, err = f.Write(data); err != nil {\n\t\tf.Close()\n\t\treturn err\n\t}\n\tif err = f.Sync(); err != nil {\n\t\tf.Close()\n\t\treturn err\n\t}\n\tif err = f.Close(); err != nil {\n\t\treturn err\n\t}\n\treturn os.Rename(f.Name(), filepath.Join(dir, name))\n}\n\nfunc (a *app) upload(w http.ResponseWriter, r *http.Request) {\n\tselect {\n\tcase a.uploadSlots <- struct{}{}:\n\t\tdefer func() { <-a.uploadSlots }()\n\tdefault:\n\t\tfail(w, 429, "Ein anderer Import läuft bereits")\n\t\treturn\n\t}\n\tname, err := url.PathUnescape(r.Header.Get("X-File-Name"))\n\tif err != nil || !validName(name) {\n\t\tfail(w, 400, "Nur .html/.htm-Dateien mit einfachem Dateinamen sind erlaubt")\n\t\treturn\n\t}\n\tr.Body = http.MaxBytesReader(w, r.Body, a.maxBytes)\n\tbody, err := io.ReadAll(r.Body)\n\tif err != nil {\n\t\tvar limit *http.MaxBytesError\n\t\tif errors.As(err, &limit) {\n\t\t\tfail(w, 413, "Datei überschreitet das Upload-Limit")\n\t\t} else {\n\t\t\tfail(w, 400, "Datei konnte nicht gelesen werden")\n\t\t}\n\t\treturn\n\t}\n\tif len(body) == 0 || !utf8.Valid(body) || strings.ContainsRune(string(body), 0) || !htmlRE.Match(body) {\n\t\tfail(w, 400, "UTF-8 HTML mit <!doctype html> oder <html> erforderlich")\n\t\treturn\n\t}\n\tprofile := SecurityProfile(r.Header.Get("X-Security-Profile"))\n\tif profile == "" {\n\t\tprofile = ProfileInteractive\n\t}\n\n\ta.mu.Lock()\n\tdefer a.mu.Unlock()\n\tpages, err := a.list()\n\tif err != nil {\n\t\tfail(w, 500, "Dateiliste konnte nicht geladen werden")\n\t\treturn\n\t}\n\tif len(pages) >= a.maxPages {\n\t\tfail(w, 409, "Maximale Anzahl veröffentlichter Seiten erreicht")\n\t\treturn\n\t}\n\trandom := make([]byte, 16)\n\tif _, err := rand.Read(random); err != nil {\n\t\tfail(w, 500, "ID konnte nicht erzeugt werden")\n\t\treturn\n\t}\n\tid := hex.EncodeToString(random)\n\thash := sha256.Sum256(body)\n\tp := page{\n\t\tID:           id,\n\t\tName:         name,\n\t\tSize:         int64(len(body)),\n\t\tSHA256:       hex.EncodeToString(hash[:]),\n\t\tCreated:      time.Now().UTC(),\n\t\tURL:          a.publicURL + "/pages/" + id + ".html",\n\t\tProfile:      profile,\n\t\tCanonicalURL: a.publicURL + "/pages/" + id + ".html",\n\t}\n\ta.pageLinks(&p)\n\tmetadata, _ := json.Marshal(p)\n\tif err := atomicWrite(filepath.Join(a.dir, "meta"), id+".json", metadata); err != nil {\n\t\tfail(w, 500, "Metadaten konnten nicht gespeichert werden")\n\t\treturn\n\t}\n\tif err := atomicWrite(filepath.Join(a.dir, "public"), id+".html", body); err != nil {\n\t\t_ = os.Remove(filepath.Join(a.dir, "meta", id+".json"))\n\t\tfail(w, 500, "Datei konnte nicht gespeichert werden")\n\t\treturn\n\t}\n\t_ = a.renderPublicIndex()\n\tjsonReply(w, 201, p)\n}\n\nfunc (a *app) remove(w http.ResponseWriter, r *http.Request) {\n\tid := strings.TrimPrefix(r.URL.Path, "/api/pages/")\n\tif !idRE.MatchString(id) {\n\t\tfail(w, 400, "Ungültige Datei-ID")\n\t\treturn\n\t}\n\ta.mu.Lock()\n\tdefer a.mu.Unlock()\n\tif err := a.removePublishedFiles(id); err != nil {\n\t\tif errors.Is(err, os.ErrNotExist) {\n\t\t\tfail(w, 404, "Datei nicht gefunden")\n\t\t} else {\n\t\t\tfail(w, 500, "Löschen fehlgeschlagen")\n\t\t}\n\t\treturn\n\t}\n\tif err := os.Remove(filepath.Join(a.dir, "meta", id+".json")); err != nil && !errors.Is(err, os.ErrNotExist) {\n\t\tlog.Printf("metadata cleanup: %v", err)\n\t}\n\t_ = a.renderPublicIndex()\n\tw.WriteHeader(http.StatusNoContent)\n}\n
+</html>`)
+
+	return atomicWrite(filepath.Join(a.dir, "public"), "index.html", []byte(b.String()))
+}
+
+func main() {
+	if len(os.Args) > 1 && os.Args[1] == "init-storage" {
+		if err := initStorage(env("DATA_DIR", "/data")); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
+		c := http.Client{Timeout: 2 * time.Second}
+		r, err := c.Get("http://127.0.0.1:8080/healthz")
+		if err != nil {
+			os.Exit(1)
+		}
+		defer r.Body.Close()
+		if r.StatusCode != 200 {
+			os.Exit(1)
+		}
+		return
+	}
+	if len(os.Args) > 1 && (os.Args[1] == "verify-storage" || os.Args[1] == "check-storage") {
+		dir := env("DATA_DIR", "/data")
+		fix := false
+		confirm := false
+		for _, arg := range os.Args[2:] {
+			switch arg {
+			case "--fix", "-f":
+				fix = true
+			case "--yes", "-y", "--confirm":
+				confirm = true
+			}
+		}
+		report, err := runStorageCheck(dir, fix, confirm, os.Stdin, os.Stdout)
+		if err != nil {
+			log.Fatalf("Speicherprüfung fehlgeschlagen: %v", err)
+		}
+		if report.HasErrors() && !fix {
+			os.Exit(1)
+		}
+		return
+	}
+	password, err := os.ReadFile(env("ADMIN_PASSWORD_FILE", "/run/secrets/admin_password"))
+	if err != nil {
+		log.Fatal("cannot read administrator password file")
+	}
+	secret := strings.TrimRight(string(password), "\r\n")
+	if len(secret) < 16 {
+		log.Fatal("administrator password must contain at least 16 bytes")
+	}
+	a := &app{
+		dir:         env("DATA_DIR", "/data"),
+		user:        env("ADMIN_USER", "admin"),
+		password:    secret,
+		origin:      env("ADMIN_ORIGIN", "http://localhost:8080"),
+		publicURL:   env("PUBLIC_URL", "http://localhost:8081"),
+		maxBytes:    positive("MAX_UPLOAD_BYTES", 5*1024*1024),
+		maxPages:    int(positive("MAX_PAGES", 500)),
+		uploadSlots: make(chan struct{}, 1),
+	}
+	if !validOrigin(a.origin) || !validOrigin(a.publicURL) || a.origin == a.publicURL {
+		log.Fatal("ADMIN_ORIGIN and PUBLIC_URL must be distinct origins without trailing slash")
+	}
+	if err := initStorage(a.dir); err != nil {
+		log.Fatal(err)
+	}
+	_ = a.renderPublicIndex()
+
+	server := &http.Server{
+		Addr:              ":8080",
+		Handler:           a.handler(),
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    16 * 1024,
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	go func() {
+		<-ctx.Done()
+		shutdown, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := server.Shutdown(shutdown); err != nil {
+			log.Printf("shutdown: %v", err)
+		}
+	}()
+	log.Print("HTML manager listening on :8080")
+	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		log.Fatal(err)
+	}
+}
+
+func jsonReply(w http.ResponseWriter, code int, v any) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(code)
+	_ = json.NewEncoder(w).Encode(v)
+}
+
+func fail(w http.ResponseWriter, code int, message string) {
+	jsonReply(w, code, map[string]string{"error": message})
+}
+
+func equal(a, b string) bool {
+	x, y := sha256.Sum256([]byte(a)), sha256.Sum256([]byte(b))
+	return subtle.ConstantTimeCompare(x[:], y[:]) == 1
+}
+
+func (a *app) handler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.Header().Set("Referrer-Policy", "no-referrer")
+		w.Header().Set("Cache-Control", "no-store")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'")
+		if serveFavicon(w, r) {
+			return
+		}
+		if r.URL.Path == "/healthz" && r.Method == http.MethodGet {
+			w.WriteHeader(200)
+			_, _ = w.Write([]byte("ok\n"))
+			return
+		}
+
+		// Öffentlicher Access-Check Endpoint für NGINX
+		if strings.HasPrefix(r.URL.Path, "/verify-access") && r.Method == http.MethodGet {
+			a.checkPublicAccess(w, r)
+			return
+		}
+
+		user, ok := a.authenticate(r)
+		if !ok {
+			w.Header().Set("WWW-Authenticate", `Basic realm="HTML-Verwaltung", charset="UTF-8"`)
+			fail(w, 401, "Anmeldung erforderlich")
+			return
+		}
+		if r.Method != http.MethodGet && r.Method != http.MethodHead && r.Header.Get("Origin") != a.origin {
+			fail(w, 403, "Origin nicht erlaubt")
+			return
+		}
+
+		switch {
+		case r.URL.Path == "/api/pages" && r.Method == http.MethodGet:
+			a.mu.Lock()
+			defer a.mu.Unlock()
+			pages, err := a.list()
+			if err != nil {
+				fail(w, 500, "Dateiliste konnte nicht geladen werden")
+				return
+			}
+			jsonReply(w, 200, pages)
+
+		case r.URL.Path == "/api/upload" && r.Method == http.MethodPost:
+			if !user.CanUpload() {
+				fail(w, 403, "Berechtigung verweigert: Rolle 'viewer' darf keine Dateien hochladen")
+				return
+			}
+			a.upload(w, r, user)
+
+		case strings.HasPrefix(r.URL.Path, "/api/pages/") && strings.HasSuffix(r.URL.Path, "/update") && r.Method == http.MethodPut:
+			if !user.CanUpdate() {
+				fail(w, 403, "Berechtigung verweigert: Keine Editierrechte")
+				return
+			}
+			a.updateExistingPage(w, r, user)
+
+		case strings.HasPrefix(r.URL.Path, "/api/pages/") && strings.HasSuffix(r.URL.Path, "/versions") && r.Method == http.MethodGet:
+			a.listVersions(w, r)
+
+		case strings.HasPrefix(r.URL.Path, "/api/pages/") && strings.Contains(r.URL.Path, "/rollback/") && r.Method == http.MethodPost:
+			if !user.CanUpdate() {
+				fail(w, 403, "Berechtigung verweigert: Keine Rollback-Rechte")
+				return
+			}
+			a.rollbackVersion(w, r, user)
+
+		case strings.HasPrefix(r.URL.Path, "/api/pages/") && strings.HasSuffix(r.URL.Path, "/metadata") && r.Method == http.MethodPut:
+			if !user.CanUpdate() {
+				fail(w, 403, "Berechtigung verweigert: Keine Editierrechte")
+				return
+			}
+			a.updateMetadata(w, r, user)
+
+		case strings.HasPrefix(r.URL.Path, "/api/pages/") && strings.HasSuffix(r.URL.Path, "/access") && r.Method == http.MethodPut:
+			if user.Role != RoleAdmin {
+				fail(w, 403, "Berechtigung verweigert: Nur Administratoren können Zugriffsregeln ändern")
+				return
+			}
+			a.updateAccessPolicy(w, r, user)
+
+		case r.URL.Path == "/api/storage/quota" && r.Method == http.MethodGet:
+			a.getQuotaHandler(w, r)
+
+		case r.URL.Path == "/api/audit" && r.Method == http.MethodGet:
+			if !user.CanViewAudit() {
+				fail(w, 403, "Berechtigung verweigert: Audit-Protokoll nur für Administratoren")
+				return
+			}
+			a.getAuditLogs(w, r)
+
+		case strings.HasPrefix(r.URL.Path, "/api/pages/") && strings.HasSuffix(r.URL.Path, "/link") && r.Method == http.MethodPut:
+			if !user.CanUpdate() {
+				fail(w, 403, "Berechtigung verweigert")
+				return
+			}
+			a.changeLink(w, r)
+
+		case strings.HasPrefix(r.URL.Path, "/api/pages/") && strings.HasSuffix(r.URL.Path, "/download") && (r.Method == http.MethodGet || r.Method == http.MethodHead):
+			a.download(w, r)
+
+		case strings.HasPrefix(r.URL.Path, "/api/pages/") && r.Method == http.MethodDelete:
+			if !user.CanDelete() {
+				fail(w, 403, "Berechtigung verweigert: Nur Administratoren dürfen Seiten löschen")
+				return
+			}
+			a.remove(w, r, user)
+
+		case (r.URL.Path == "/logo-light.png" || r.URL.Path == "/logo-dark.png") && (r.Method == http.MethodGet || r.Method == http.MethodHead):
+			name := map[string]string{"/logo-light.png": "builder-light-1400x700.png", "/logo-dark.png": "builder-dark-1400x700.png"}[r.URL.Path]
+			data, err := branding.Assets.ReadFile(name)
+			if err != nil {
+				fail(w, 500, "Logo nicht verfügbar")
+				return
+			}
+			w.Header().Set("Content-Type", "image/png")
+			w.WriteHeader(200)
+			if r.Method != http.MethodHead {
+				_, _ = w.Write(data)
+			}
+
+		case r.Method == http.MethodGet || r.Method == http.MethodHead:
+			name := map[string]string{"/": "index.html", "/app.js": "app.js", "/style.css": "style.css"}[r.URL.Path]
+			if name == "" {
+				fail(w, 404, "Nicht gefunden")
+				return
+			}
+			data, err := web.ReadFile("web/" + name)
+			if err != nil {
+				fail(w, 500, "Oberfläche nicht verfügbar")
+				return
+			}
+			types := map[string]string{"index.html": "text/html; charset=utf-8", "app.js": "text/javascript; charset=utf-8", "style.css": "text/css; charset=utf-8"}
+			w.Header().Set("Content-Type", types[name])
+			w.WriteHeader(200)
+			if r.Method != http.MethodHead {
+				_, _ = w.Write(data)
+			}
+
+		default:
+			fail(w, 405, "Methode nicht erlaubt")
+		}
+	})
+}
+
+func (a *app) list() ([]page, error) {
+	entries, err := os.ReadDir(filepath.Join(a.dir, "meta"))
+	if err != nil {
+		return nil, err
+	}
+	pages := make([]page, 0, len(entries))
+	for _, e := range entries {
+		id := strings.TrimSuffix(e.Name(), ".json")
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") || !idRE.MatchString(id) {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(a.dir, "meta", e.Name()))
+		if err != nil {
+			return nil, err
+		}
+		var p page
+		if err := json.Unmarshal(data, &p); err != nil || p.ID != id {
+			return nil, fmt.Errorf("invalid metadata: %s", id)
+		}
+		if _, err := os.Stat(filepath.Join(a.dir, "public", id+".html")); errors.Is(err, os.ErrNotExist) {
+			continue
+		} else if err != nil {
+			return nil, err
+		}
+		if p.Slug != "" && !validSlug(p.Slug) {
+			return nil, fmt.Errorf("invalid slug: %s", id)
+		}
+		a.pageLinks(&p)
+		pages = append(pages, p)
+	}
+	sort.Slice(pages, func(i, j int) bool { return pages[i].Created.After(pages[j].Created) })
+	return pages, nil
+}
+
+func validName(name string) bool {
+	return utf8.ValidString(name) && len(name) > 0 && len(name) <= 180 &&
+		!strings.ContainsAny(name, "/\\\x00\r\n") &&
+		(strings.HasSuffix(strings.ToLower(name), ".html") || strings.HasSuffix(strings.ToLower(name), ".htm"))
+}
+
+func atomicWrite(dir, name string, data []byte) error {
+	f, err := os.CreateTemp(dir, ".upload-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(f.Name())
+	if err = f.Chmod(0644); err != nil {
+		f.Close()
+		return err
+	}
+	if _, err = f.Write(data); err != nil {
+		f.Close()
+		return err
+	}
+	if err = f.Sync(); err != nil {
+		f.Close()
+		return err
+	}
+	if err = f.Close(); err != nil {
+		return err
+	}
+	return os.Rename(f.Name(), filepath.Join(dir, name))
+}
+
+func (a *app) upload(w http.ResponseWriter, r *http.Request, user *AuthUser) {
+	select {
+	case a.uploadSlots <- struct{}{}:
+		defer func() { <-a.uploadSlots }()
+	default:
+		fail(w, 429, "Ein anderer Import läuft bereits")
+		return
+	}
+	name, err := url.PathUnescape(r.Header.Get("X-File-Name"))
+	if err != nil || !validName(name) {
+		fail(w, 400, "Nur .html/.htm-Dateien mit einfachem Dateinamen sind erlaubt")
+		return
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, a.maxBytes)
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		var limit *http.MaxBytesError
+		if errors.As(err, &limit) {
+			fail(w, 413, "Datei überschreitet das Upload-Limit")
+		} else {
+			fail(w, 400, "Datei konnte nicht gelesen werden")
+		}
+		return
+	}
+	if len(body) == 0 || !utf8.Valid(body) || strings.ContainsRune(string(body), 0) || !htmlRE.Match(body) {
+		fail(w, 400, "UTF-8 HTML mit <!doctype html> oder <html> erforderlich")
+		return
+	}
+	profile := SecurityProfile(r.Header.Get("X-Security-Profile"))
+	if profile == "" {
+		profile = ProfileInteractive
+	}
+
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	// Quota-Prüfung
+	if quotaErr := a.checkQuotaAddition(int64(len(body))); quotaErr != nil {
+		fail(w, 413, quotaErr.Error())
+		return
+	}
+
+	pages, err := a.list()
+	if err != nil {
+		fail(w, 500, "Dateiliste konnte nicht geladen werden")
+		return
+	}
+	if len(pages) >= a.maxPages {
+		fail(w, 409, "Maximale Anzahl veröffentlichter Seiten erreicht")
+		return
+	}
+	random := make([]byte, 16)
+	if _, err := rand.Read(random); err != nil {
+		fail(w, 500, "ID konnte nicht erzeugt werden")
+		return
+	}
+	id := hex.EncodeToString(random)
+	hash := sha256.Sum256(body)
+	p := page{
+		ID:             id,
+		Name:           name,
+		Size:           int64(len(body)),
+		SHA256:         hex.EncodeToString(hash[:]),
+		Created:        time.Now().UTC(),
+		URL:            a.publicURL + "/pages/" + id + ".html",
+		Profile:        profile,
+		CanonicalURL:   a.publicURL + "/pages/" + id + ".html",
+		CurrentVersion: 1,
+		Visibility:     VisibilityPublic,
+	}
+	a.pageLinks(&p)
+	metadata, _ := json.Marshal(p)
+	if err := atomicWrite(filepath.Join(a.dir, "meta"), id+".json", metadata); err != nil {
+		fail(w, 500, "Metadaten konnten nicht gespeichert werden")
+		return
+	}
+	if err := atomicWrite(filepath.Join(a.dir, "public"), id+".html", body); err != nil {
+		_ = os.Remove(filepath.Join(a.dir, "meta", id+".json"))
+		fail(w, 500, "Datei konnte nicht gespeichert werden")
+		return
+	}
+	_ = a.renderPublicIndex()
+
+	a.logAudit(AuditEntry{
+		Timestamp: time.Now().UTC(),
+		User:      user.Username,
+		Role:      user.Role,
+		Action:    AuditUpload,
+		PageID:    id,
+		Details:   fmt.Sprintf("Neu hochgeladen: %s (%d Bytes)", name, p.Size),
+		ClientIP:  r.RemoteAddr,
+	})
+
+	jsonReply(w, 201, p)
+}
+
+func (a *app) remove(w http.ResponseWriter, r *http.Request, user *AuthUser) {
+	id := strings.TrimPrefix(r.URL.Path, "/api/pages/")
+	if !idRE.MatchString(id) {
+		fail(w, 400, "Ungültige Datei-ID")
+		return
+	}
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	if err := a.removePublishedFiles(id); err != nil {
+		if errors.Is(err, os.ErrNotExist) {
+			fail(w, 404, "Datei nicht gefunden")
+		} else {
+			fail(w, 500, "Löschen fehlgeschlagen")
+		}
+		return
+	}
+	if err := os.Remove(filepath.Join(a.dir, "meta", id+".json")); err != nil && !errors.Is(err, os.ErrNotExist) {
+		log.Printf("metadata cleanup: %v", err)
+	}
+	_ = os.RemoveAll(filepath.Join(a.dir, "versions", id))
+	_ = a.renderPublicIndex()
+
+	a.logAudit(AuditEntry{
+		Timestamp: time.Now().UTC(),
+		User:      user.Username,
+		Role:      user.Role,
+		Action:    AuditDelete,
+		PageID:    id,
+		Details:   "Seite und zugehörige Versionen gelöscht",
+		ClientIP:  r.RemoteAddr,
+	})
+
+	w.WriteHeader(http.StatusNoContent)
+}
