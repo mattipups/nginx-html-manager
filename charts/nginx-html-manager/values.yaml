@@ -1,7 +1,7 @@
 # Build and push BOTH images to your registry before cluster installation.
 image:
-  backend: {repository: local/html-manager, tag: "1.4.0", digest: ""}
-  nginx: {repository: local/html-manager-nginx, tag: "1.4.0", digest: ""}
+  backend: {repository: local/html-manager, tag: "1.5.0", digest: ""}
+  nginx: {repository: local/html-manager-nginx, tag: "1.5.0", digest: ""}
   pullPolicy: IfNotPresent
 imagePullSecrets: []
 config:
