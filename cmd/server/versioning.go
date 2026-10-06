@@ -7,13 +7,151 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
+
+type SecurityProfile string
+
+const (
+	ProfileStatic      SecurityProfile = "static"
+	ProfileInteractive SecurityProfile = "interactive-local"
+	ProfileAPIEnabled  SecurityProfile = "api-enabled"
+)
+
+type FileVersionMeta struct {
+	Version   int       `json:"version"`
+	Filename  string    `json:"filename"`
+	Size      int64     `json:"size"`
+	SHA256    string    `json:"sha256"`
+	Timestamp time.Time `json:"timestamp"`
+}
+
+type ManagedFileMeta struct {
+	ID              string            `json:"id"`
+	CustomSlug      string            `json:"custom_slug,omitempty"`
+	CurrentVersion  int               `json:"current_version"`
+	SecurityProfile SecurityProfile   `json:"security_profile"`
+	AllowedHosts    []string          `json:"allowed_hosts,omitempty"`
+	History         []FileVersionMeta `json:"history"`
+	UpdatedAt       time.Time         `json:"updated_at"`
+}
+
+type VersionManager struct {
+	mu       sync.RWMutex
+	dataDir  string
+	metadata map[string]*ManagedFileMeta
+}
+
+func NewVersionManager(dataDir string) *VersionManager {
+	return &VersionManager{
+		dataDir:  dataDir,
+		metadata: make(map[string]*ManagedFileMeta),
+	}
+}
+
+func (vm *VersionManager) UpdateContent(id string, reader io.Reader, filename string) (*ManagedFileMeta, error) {
+	vm.mu.Lock()
+	defer vm.mu.Unlock()
+
+	meta, exists := vm.metadata[id]
+	if !exists {
+		return nil, fmt.Errorf("datei mit ID %s existiert nicht", id)
+	}
+
+	nextVersion := meta.CurrentVersion + 1
+	histDir := filepath.Join(vm.dataDir, "history", id, fmt.Sprintf("v%d", nextVersion))
+	if err := os.MkdirAll(histDir, 0755); err != nil {
+		return nil, err
+	}
+
+	destPath := filepath.Join(histDir, filename)
+	out, err := os.Create(destPath)
+	if err != nil {
+		return nil, err
+	}
+	defer out.Close()
+
+	size, err := io.Copy(out, reader)
+	if err != nil {
+		return nil, err
+	}
+
+	activeDir := filepath.Join(vm.dataDir, "current")
+	if err := os.MkdirAll(activeDir, 0755); err != nil {
+		return nil, err
+	}
+	activePath := filepath.Join(activeDir, id)
+	_ = os.Remove(activePath)
+	if err := os.Link(destPath, activePath); err != nil {
+		content, readErr := os.ReadFile(destPath)
+		if readErr != nil {
+			return nil, err
+		}
+		if writeErr := os.WriteFile(activePath, content, 0644); writeErr != nil {
+			return nil, writeErr
+		}
+	}
+
+	meta.CurrentVersion = nextVersion
+	meta.UpdatedAt = time.Now().UTC()
+	meta.History = append(meta.History, FileVersionMeta{
+		Version:   nextVersion,
+		Filename:  filename,
+		Size:      size,
+		Timestamp: meta.UpdatedAt,
+	})
+
+	return meta, nil
+}
+
+func (vm *VersionManager) Rollback(id string, targetVersion int) (*ManagedFileMeta, error) {
+	vm.mu.Lock()
+	defer vm.mu.Unlock()
+
+	meta, exists := vm.metadata[id]
+	if !exists {
+		return nil, fmt.Errorf("datei nicht gefunden")
+	}
+
+	var found *FileVersionMeta
+	for _, v := range meta.History {
+		if v.Version == targetVersion {
+			found = &v
+			break
+		}
+	}
+	if found == nil {
+		return nil, fmt.Errorf("version %d existiert nicht", targetVersion)
+	}
+
+	histPath := filepath.Join(vm.dataDir, "history", id, fmt.Sprintf("v%d", targetVersion), found.Filename)
+	activeDir := filepath.Join(vm.dataDir, "current")
+	if err := os.MkdirAll(activeDir, 0755); err != nil {
+		return nil, err
+	}
+	activePath := filepath.Join(activeDir, id)
+	_ = os.Remove(activePath)
+	if err := os.Link(histPath, activePath); err != nil {
+		content, readErr := os.ReadFile(histPath)
+		if readErr != nil {
+			return nil, err
+		}
+		if writeErr := os.WriteFile(activePath, content, 0644); writeErr != nil {
+			return nil, writeErr
+		}
+	}
+
+	meta.CurrentVersion = targetVersion
+	meta.UpdatedAt = time.Now().UTC()
+	return meta, nil
+}
 
 type PageVersion struct {
 	Version   int       `json:"version"`
@@ -31,7 +169,7 @@ func (a *app) updateExistingPage(w http.ResponseWriter, r *http.Request, user *A
 		return
 	}
 
-	name, _ := urlPathUnescape(r.Header.Get("X-File-Name"))
+	name, _ := url.PathUnescape(r.Header.Get("X-File-Name"))
 	if name == "" {
 		name = id + ".html"
 	}
@@ -60,13 +198,11 @@ func (a *app) updateExistingPage(w http.ResponseWriter, r *http.Request, user *A
 		return
 	}
 
-	// 1. Quota prüfen
 	if quotaErr := a.checkQuotaAddition(int64(len(body))); quotaErr != nil {
 		fail(w, 413, quotaErr.Error())
 		return
 	}
 
-	// 2. Bisherigen Stand in Versionshistorie archivieren
 	if p.CurrentVersion < 1 {
 		p.CurrentVersion = 1
 	}
@@ -89,7 +225,6 @@ func (a *app) updateExistingPage(w http.ResponseWriter, r *http.Request, user *A
 		Author:   user.Username,
 	})
 
-	// 3. Neuen Stand aktivieren
 	nextVersion := p.CurrentVersion + 1
 	newHash := sha256.Sum256(body)
 	p.CurrentVersion = nextVersion
@@ -98,20 +233,17 @@ func (a *app) updateExistingPage(w http.ResponseWriter, r *http.Request, user *A
 	p.SHA256 = hex.EncodeToString(newHash[:])
 	p.Created = time.Now().UTC()
 
-	// Atomar in public schreiben
 	if err := atomicWrite(filepath.Join(a.dir, "public"), id+".html", body); err != nil {
 		fail(w, 500, "Aktualisierung fehlgeschlagen")
 		return
 	}
 
-	// Hardlink erneuern
 	if p.Slug != "" {
 		slugPath := filepath.Join(a.dir, "public", p.Slug+".html")
 		_ = os.Remove(slugPath)
 		_ = os.Link(filepath.Join(a.dir, "public", id+".html"), slugPath)
 	}
 
-	// Metadaten speichern
 	a.pageLinks(&p)
 	metaBytes, _ := json.Marshal(p)
 	_ = atomicWrite(filepath.Join(a.dir, "meta"), id+".json", metaBytes)
@@ -189,11 +321,9 @@ func (a *app) rollbackVersion(w http.ResponseWriter, r *http.Request, user *Auth
 		return
 	}
 
-	// Aktuellen Stand vor Rollback sichern
 	versionsDir := filepath.Join(a.dir, "versions", id)
 	_ = os.WriteFile(filepath.Join(versionsDir, fmt.Sprintf("v%d.html", p.CurrentVersion)), archivedData, 0644)
 
-	// Wiederherstellen
 	if err := atomicWrite(filepath.Join(a.dir, "public"), id+".html", archivedData); err != nil {
 		fail(w, 500, "Rollback fehlgeschlagen")
 		return

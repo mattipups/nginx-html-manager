@@ -36,7 +36,7 @@ func (a *app) calculateStorageQuota() StorageQuotaInfo {
 	metaBytes := dirSize(filepath.Join(a.dir, "meta"))
 	total := publicBytes + versionsBytes + metaBytes
 
-	maxBytes := positive("MAX_STORAGE_BYTES", 10*1024*1024*1024) // 10 GB Default
+	maxBytes := positive("MAX_STORAGE_BYTES", int64(10)*1024*1024*1024) // 10 GB Default
 	warnPercent := float64(positive("STORAGE_WARN_PERCENT", 80))
 
 	usedPct := 0.0

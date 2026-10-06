@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -26,7 +25,6 @@ func TestUpdateAndRollbackLifecycle(t *testing.T) {
 
 	user := &AuthUser{Username: "admin", Role: RoleAdmin}
 
-	// 1. Update durchführen
 	updateContent := "<!doctype html><html><body>Version 2 Inhalt</body></html>"
 	req := httptest.NewRequest("PUT", "/api/pages/"+p.ID+"/update", strings.NewReader(updateContent))
 	req.Header.Set("X-File-Name", "app-v2.html")
@@ -37,13 +35,11 @@ func TestUpdateAndRollbackLifecycle(t *testing.T) {
 		t.Fatalf("update failed: %d, body: %s", w.Code, w.Body.String())
 	}
 
-	// Prüfen, ob Version 1 archiviert wurde
 	archiveV1 := filepath.Join(dir, "versions", p.ID, "v1.html")
 	if _, err := os.Stat(archiveV1); err != nil {
 		t.Fatalf("expected v1 archive to exist: %v", err)
 	}
 
-	// 2. Versionsliste abrufen
 	reqVer := httptest.NewRequest("GET", "/api/pages/"+p.ID+"/versions", nil)
 	wVer := httptest.NewRecorder()
 	a.listVersions(wVer, reqVer)
@@ -51,7 +47,6 @@ func TestUpdateAndRollbackLifecycle(t *testing.T) {
 		t.Fatalf("versions listing failed: %d", wVer.Code)
 	}
 
-	// 3. Rollback auf Version 1
 	reqRoll := httptest.NewRequest("POST", "/api/pages/"+p.ID+"/rollback/1", nil)
 	wRoll := httptest.NewRecorder()
 	a.rollbackVersion(wRoll, reqRoll, user)
@@ -80,13 +75,11 @@ func TestMetadataAndRedirect(t *testing.T) {
 
 	user := &AuthUser{Username: "admin", Role: RoleAdmin}
 
-	// Erst Slug setzen
 	p.Slug = "old-name"
 	_ = os.Link(filepath.Join(dir, "public", p.ID+".html"), filepath.Join(dir, "public", "old-name.html"))
 	metaBytes, _ := json.Marshal(p)
 	_ = os.WriteFile(filepath.Join(dir, "meta", p.ID+".json"), metaBytes, 0644)
 
-	// Metadaten anpassen mit neuem Slug und Redirect
 	title := "Mein Tool"
 	desc := "Eine tolle Anwendung"
 	tags := []string{"k8s", "argocd"}
@@ -106,13 +99,11 @@ func TestMetadataAndRedirect(t *testing.T) {
 		t.Fatalf("metadata update failed: %d, %s", w.Code, w.Body.String())
 	}
 
-	// Prüfen, ob old-name.html nun Weiterleitung ist
 	oldFile, err := os.ReadFile(filepath.Join(dir, "public", "old-name.html"))
 	if err != nil || !strings.Contains(string(oldFile), "http-equiv=\"refresh\"") {
 		t.Fatalf("expected redirect file for old-name.html")
 	}
 
-	// Prüfen, ob new-tool.html existiert und Hardlink ist
 	newStat, err := os.Stat(filepath.Join(dir, "public", "new-tool.html"))
 	origStat, _ := os.Stat(filepath.Join(dir, "public", p.ID+".html"))
 	if err != nil || !os.SameFile(newStat, origStat) {

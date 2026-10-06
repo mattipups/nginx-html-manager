@@ -3,7 +3,6 @@ package main
 import (
 	"crypto/subtle"
 	"net/http"
-	"os"
 	"strings"
 )
 
@@ -43,7 +42,6 @@ func (u *AuthUser) CanManageQuota() bool {
 }
 
 func (a *app) authenticate(r *http.Request) (*AuthUser, bool) {
-	// 1. OIDC Token / Bearer Header (falls konfiguriert)
 	authHeader := r.Header.Get("Authorization")
 	if strings.HasPrefix(authHeader, "Bearer ") {
 		token := strings.TrimPrefix(authHeader, "Bearer ")
@@ -52,7 +50,6 @@ func (a *app) authenticate(r *http.Request) (*AuthUser, bool) {
 		}
 	}
 
-	// 2. Standard HTTP Basic Auth
 	user, pass, ok := r.BasicAuth()
 	if !ok {
 		return nil, false
@@ -64,7 +61,6 @@ func (a *app) authenticate(r *http.Request) (*AuthUser, bool) {
 		return nil, false
 	}
 
-	// Standardmäßiger Admin-Benutzer
 	return &AuthUser{
 		Username: user,
 		Role:     RoleAdmin,
@@ -74,7 +70,6 @@ func (a *app) authenticate(r *http.Request) (*AuthUser, bool) {
 }
 
 func (a *app) validateOIDCToken(token string) (*AuthUser, bool) {
-	// Wenn OIDC nicht aktiv ist, Bearer ablehnen
 	if env("OIDC_ENABLED", "false") != "true" {
 		return nil, false
 	}
