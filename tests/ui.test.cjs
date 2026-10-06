@@ -28,7 +28,7 @@ test("filenames are text, never innerHTML",async()=>{
 });
 test("external tab cannot access the opener",async()=>{
   const {ctx,nodes}=await context();vm.runInContext(`pages=[{id:"a",name:"a.html",size:1,created:"2026-01-01",url:"http://localhost:8081/pages/a.html"}];render();`,ctx);
-  const link=nodes.get("pages").children[0].children[3].children[0];assert.equal(link.rel,"noopener noreferrer");assert.equal(link.target,"_blank");
+  const link=nodes.get("pages").children[0].children[4].children[0];assert.equal(link.rel,"noopener noreferrer");assert.equal(link.target,"_blank");
 });
 test("name filtering is case insensitive",async()=>{
   const {ctx,nodes}=await context();nodes.get("search").value="DEMO";
@@ -42,5 +42,26 @@ test("unsupported extension fails without a network upload",async()=>{
 });
 test("cancelled delete does not request deletion",async()=>{
   const {ctx,nodes}=await context();vm.runInContext(`pages=[{id:"a",name:"a.html",size:1,created:"2026-01-01",url:"http://localhost:8081/x"}];render();`,ctx);
-  const remove=nodes.get("pages").children[0].children[3].children[2];await remove.onclick();assert.notEqual(remove.disabled,true);
+  const remove=nodes.get("pages").children[0].children[4].children[2];await remove.onclick();assert.notEqual(remove.disabled,true);
+});
+
+test("stored security profiles are shown independently of the upload selection",async()=>{
+  const {ctx,nodes}=await context();nodes.get("profile").value="static";
+  vm.runInContext(`pages=["static","interactive-local","interactive-api"].map((profile,i)=>({id:String(i),name:"demo.html",size:1,created:"2026-01-01",url:"http://localhost:8081/x",profile}));render();`,ctx);
+  assert.deepEqual(nodes.get("pages").children.map(row=>row.children[3].textContent),["Statisch","Interaktiv lokal","Interaktiv mit API"]);
+  for(const row of nodes.get("pages").children) assert.equal(row.children.length,5);
+});
+test("legacy pages without a stored profile are explicitly marked",async()=>{
+  const {ctx,nodes}=await context();
+  vm.runInContext(`pages=[undefined,null,""].map(profile=>({name:"legacy.html",size:1,created:"2026-01-01",profile}));render();`,ctx);
+  for(const row of nodes.get("pages").children) assert.equal(row.children[3].textContent,"Nicht hinterlegt (Altbestand)");
+});
+test("unknown security profile values are rendered as text",async()=>{
+  const {ctx,nodes}=await context();
+  vm.runInContext(`pages=[{name:"demo.html",size:1,created:"2026-01-01",profile:"<img src=x onerror=alert(1)>"}];render();`,ctx);
+  const cell=nodes.get("pages").children[0].children[3];
+  assert.equal(cell.textContent,"Unbekannt (<img src=x onerror=alert(1)>)");assert.equal(cell.innerHTML,undefined);
+});
+test("admin table header includes the security profile column",()=>{
+  assert.match(fs.readFileSync("cmd/server/web/index.html","utf8"),/<th>Veröffentlicht<\/th><th>Sicherheitsprofil<\/th><th>Aktionen<\/th>/);
 });

@@ -11,13 +11,24 @@ async function api(path, options = {}) {
   }
   return response.status === 204 ? null : response.json();
 }
+function profileLabel(profile) {
+  switch (profile) {
+    case "static": return "Statisch";
+    case "interactive-local": return "Interaktiv lokal";
+    case "interactive-api": return "Interaktiv mit API";
+    case undefined:
+    case null:
+    case "": return "Nicht hinterlegt (Altbestand)";
+    default: return `Unbekannt (${profile})`;
+  }
+}
 function render() {
   const query = $("search").value.toLocaleLowerCase("de");
   const selected = pages.filter(p => p.name.toLocaleLowerCase("de").includes(query));
   $("pages").replaceChildren(); $("empty").hidden = selected.length !== 0;
   for (const p of selected) {
     const row = document.createElement("tr");
-    for (const value of [p.name, `${(p.size / 1024).toFixed(1)} KiB`, new Date(p.created).toLocaleString("de-DE")]) {
+    for (const value of [p.name, `${(p.size / 1024).toFixed(1)} KiB`, new Date(p.created).toLocaleString("de-DE"), profileLabel(p.profile)]) {
       const cell = document.createElement("td"); cell.textContent = value; row.append(cell);
     }
     const actions = document.createElement("td");

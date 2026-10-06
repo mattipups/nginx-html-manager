@@ -23,7 +23,7 @@ async function context(answer, conflict=false) {
   }});
   vm.runInContext(fs.readFileSync("cmd/server/web/app.js","utf8"),ctx);
   await new Promise(resolve=>setImmediate(resolve));calls.length=0;
-  const action=name=>nodes.get("pages").children[0].children[3].children.find(x=>x.textContent===name);
+  const action=name=>nodes.get("pages").children[0].children[4].children.find(x=>x.textContent===name);
   return {ctx,nodes,calls,action};
 }
 test("download uses authenticated API and original filename",async()=>{
