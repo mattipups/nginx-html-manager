@@ -5,6 +5,7 @@ FROM ${GO_IMAGE} AS source
 WORKDIR /src
 COPY go.mod ./
 COPY cmd ./cmd
+COPY logo/favicons ./logo/favicons
 COPY logo/logos/embed.go logo/logos/builder-light-1400x700.png logo/logos/builder-dark-1400x700.png ./logo/logos/
 FROM source AS test
 RUN CGO_ENABLED=0 go test ./... && go vet ./...

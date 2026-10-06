@@ -121,6 +121,7 @@ func (a *app) handler() http.Handler {
         w.Header().Set("Referrer-Policy", "no-referrer")
         w.Header().Set("Cache-Control", "no-store")
         w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'")
+        if serveFavicon(w, r) { return }
         if r.URL.Path == "/healthz" && r.Method == http.MethodGet { w.WriteHeader(200); _, _ = w.Write([]byte("ok\n")); return }
         user, pass, ok := r.BasicAuth()
         validUser, validPass := equal(user, a.user), equal(pass, a.password)
