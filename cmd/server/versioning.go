@@ -121,9 +121,9 @@ func (vm *VersionManager) Rollback(id string, targetVersion int) (*ManagedFileMe
 	}
 
 	var found *FileVersionMeta
-	for _, v := range meta.History {
-		if v.Version == targetVersion {
-			found = &v
+	for i := range meta.History {
+		if meta.History[i].Version == targetVersion {
+			found = &meta.History[i]
 			break
 		}
 	}

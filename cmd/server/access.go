@@ -79,9 +79,9 @@ func (a *app) checkPublicAccess(w http.ResponseWriter, r *http.Request) {
 	a.mu.Unlock()
 
 	var matched *page
-	for _, p := range pages {
-		if p.ID == target || (p.Slug != "" && p.Slug == target) {
-			matched = &p
+	for i := range pages {
+		if pages[i].ID == target || (pages[i].Slug != "" && pages[i].Slug == target) {
+			matched = &pages[i]
 			break
 		}
 	}
