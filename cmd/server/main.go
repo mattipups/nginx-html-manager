@@ -40,6 +40,8 @@ type page struct {
     SHA256 string `json:"sha256"`
     Created time.Time `json:"created"`
     URL string `json:"url"`
+    Slug string `json:"slug,omitempty"`
+    CanonicalURL string `json:"canonicalUrl"`
 }
 type app struct {
     dir, user, password, origin, publicURL string
@@ -138,6 +140,10 @@ func (a *app) handler() http.Handler {
             jsonReply(w, 200, pages)
         case r.URL.Path == "/api/upload" && r.Method == http.MethodPost:
             a.upload(w, r)
+        case strings.HasPrefix(r.URL.Path, "/api/pages/") && strings.HasSuffix(r.URL.Path, "/link") && r.Method == http.MethodPut:
+            a.changeLink(w, r)
+        case strings.HasPrefix(r.URL.Path, "/api/pages/") && strings.HasSuffix(r.URL.Path, "/download") && (r.Method == http.MethodGet || r.Method == http.MethodHead):
+            a.download(w, r)
         case strings.HasPrefix(r.URL.Path, "/api/pages/") && r.Method == http.MethodDelete:
             a.remove(w, r)
         case (r.URL.Path == "/logo-light.png" || r.URL.Path == "/logo-dark.png") && (r.Method == http.MethodGet || r.Method == http.MethodHead):
@@ -170,7 +176,8 @@ func (a *app) list() ([]page, error) {
         var p page
         if err := json.Unmarshal(data, &p); err != nil || p.ID != id { return nil, fmt.Errorf("invalid metadata: %s", id) }
         if _, err := os.Stat(filepath.Join(a.dir, "public", id+".html")); errors.Is(err, os.ErrNotExist) { continue } else if err != nil { return nil, err }
-        p.URL = a.publicURL+"/pages/"+p.ID+".html"
+        if p.Slug != "" && !validSlug(p.Slug) { return nil, fmt.Errorf("invalid slug: %s", id) }
+        a.pageLinks(&p)
         pages = append(pages, p)
     }
     sort.Slice(pages, func(i,j int) bool { return pages[i].Created.After(pages[j].Created) })
@@ -212,6 +219,7 @@ func (a *app) upload(w http.ResponseWriter, r *http.Request) {
     if _, err := rand.Read(random); err != nil { fail(w, 500, "ID konnte nicht erzeugt werden"); return }
     id := hex.EncodeToString(random); hash := sha256.Sum256(body)
     p := page{ID:id, Name:name, Size:int64(len(body)), SHA256:hex.EncodeToString(hash[:]), Created:time.Now().UTC(), URL:a.publicURL+"/pages/"+id+".html"}
+    a.pageLinks(&p)
     metadata, _ := json.Marshal(p)
     if err := atomicWrite(filepath.Join(a.dir, "meta"), id+".json", metadata); err != nil { fail(w, 500, "Metadaten konnten nicht gespeichert werden"); return }
     if err := atomicWrite(filepath.Join(a.dir, "public"), id+".html", body); err != nil {
@@ -224,7 +232,7 @@ func (a *app) remove(w http.ResponseWriter, r *http.Request) {
     id := strings.TrimPrefix(r.URL.Path, "/api/pages/")
     if !idRE.MatchString(id) { fail(w, 400, "Ungültige Datei-ID"); return }
     a.mu.Lock(); defer a.mu.Unlock()
-    if err := os.Remove(filepath.Join(a.dir, "public", id+".html")); err != nil {
+    if err := a.removePublishedFiles(id); err != nil {
         if errors.Is(err, os.ErrNotExist) { fail(w, 404, "Datei nicht gefunden") } else { fail(w, 500, "Löschen fehlgeschlagen") }
         return
     }
