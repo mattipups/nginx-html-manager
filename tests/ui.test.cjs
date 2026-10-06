@@ -11,11 +11,13 @@ class Element {
 }
 async function context() {
   const nodes = new Map();
+  let networkUploads = 0;
   const document = {getElementById(id) { if (!nodes.has(id)) nodes.set(id,new Element()); return nodes.get(id); }, createElement() { return new Element(); }};
-  const ctx = vm.createContext({document, navigator:{clipboard:{writeText:async()=>{}}}, fetch:async()=>({ok:true,status:200,json:async()=>[]}), confirm:()=>false, console});
+  document.getElementById("profile").value = "interactive-local";
+  const ctx = vm.createContext({XMLHttpRequest: class { constructor() { networkUploads++; throw new Error("Unexpected network upload"); } }, document, navigator:{clipboard:{writeText:async()=>{}}}, fetch:async()=>({ok:true,status:200,json:async()=>[]}), confirm:()=>false, console});
   vm.runInContext(fs.readFileSync("cmd/server/web/app.js","utf8"),ctx);
   await new Promise(resolve=>setImmediate(resolve));
-  return {ctx,nodes};
+  return {ctx,nodes,networkUploads:()=>networkUploads};
 }
 test("empty list is shown",async()=>{const {nodes}=await context();assert.equal(nodes.get("empty").hidden,false);});
 test("filenames are text, never innerHTML",async()=>{
@@ -34,8 +36,9 @@ test("name filtering is case insensitive",async()=>{
   assert.equal(nodes.get("pages").children.length,1);
 });
 test("unsupported extension fails without a network upload",async()=>{
-  const {ctx,nodes}=await context();await vm.runInContext(`upload([{name:"shell.php"}])`,ctx);
+  const {ctx,nodes,networkUploads}=await context();await vm.runInContext(`upload([{name:"shell.php"}])`,ctx);
   assert.match(nodes.get("status").textContent,/Nur .html\/.htm erlaubt/);assert.equal(nodes.get("files").disabled,false);
+  assert.equal(networkUploads(),0);assert.equal(nodes.get("profile").disabled,false);
 });
 test("cancelled delete does not request deletion",async()=>{
   const {ctx,nodes}=await context();vm.runInContext(`pages=[{id:"a",name:"a.html",size:1,created:"2026-01-01",url:"http://localhost:8081/x"}];render();`,ctx);
