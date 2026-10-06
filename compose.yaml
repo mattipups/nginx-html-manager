@@ -1,7 +1,7 @@
 name: nginx-html-manager
 services:
   uploader:
-    image: local/html-manager:dev
+    image: local/html-manager:1.0.2
     build:
       context: .
       args:
@@ -15,10 +15,9 @@ services:
       MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-5242880}
       MAX_PAGES: ${MAX_PAGES:-500}
       DATA_DIR: /data
-    secrets:
-      - admin_password
+    secrets: [admin_password]
     volumes:
-      - ./data:/data
+      - {type: volume, source: html-data, target: /data}
     read_only: true
     user: "65532:65532"
     cap_drop: [ALL]
@@ -37,7 +36,7 @@ services:
       driver: json-file
       options: {max-size: 10m, max-file: "3"}
   nginx:
-    image: local/html-manager-nginx:dev
+    image: local/html-manager-nginx:1.0.2
     build:
       context: .
       dockerfile: nginx/Dockerfile
@@ -47,7 +46,11 @@ services:
       - "${BIND_ADDRESS:-127.0.0.1}:8080:8080"
       - "${BIND_ADDRESS:-127.0.0.1}:8081:8081"
     volumes:
-      - ./data/public:/srv/pages:ro
+      - type: volume
+        source: html-data
+        target: /srv/pages
+        read_only: true
+        volume: {subpath: public, nocopy: true}
     tmpfs:
       - /tmp:size=64m,mode=1777
     read_only: true
@@ -59,11 +62,13 @@ services:
     cpus: 1.0
     restart: unless-stopped
     depends_on:
-      uploader:
-        condition: service_healthy
+      uploader: {condition: service_healthy}
     logging:
       driver: json-file
       options: {max-size: 10m, max-file: "3"}
+volumes:
+  html-data:
+    name: ${HTML_VOLUME_NAME:-nginx-html-manager-html-data}
 secrets:
   admin_password:
     file: ./secrets/admin_password.txt

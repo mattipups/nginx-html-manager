@@ -9,3 +9,4 @@ artifacts/
 /server
 *.log
 .DS_Store
+/html-data-backup-*.tgz

@@ -1,19 +1,21 @@
-.PHONY: init lock build up down test scan smoke logs
+.PHONY: init lock build up down test scan smoke logs chart
 init:
-	./scripts/init.sh
+	bash scripts/init.sh
 lock:
-	./scripts/lock-images.sh
+	bash scripts/lock-images.sh
 build:
-	./scripts/compose.sh build --pull
+	bash scripts/compose.sh build --pull
 up:
-	./scripts/compose.sh up -d --build --wait
+	bash scripts/compose.sh up -d --build --wait
 down:
-	./scripts/compose.sh down
+	bash scripts/compose.sh down
 test:
-	./scripts/test.sh
+	bash scripts/test.sh
 scan:
-	./scripts/scan.sh
+	bash scripts/scan.sh
 smoke:
-	./scripts/smoke.sh
+	bash scripts/smoke.sh
 logs:
-	./scripts/compose.sh logs -f
+	bash scripts/compose.sh logs -f
+chart:
+	bash scripts/check-chart.sh
