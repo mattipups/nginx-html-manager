@@ -35,7 +35,26 @@ function render() {
       remove.disabled = true;
       try { await api(`/api/pages/${p.id}`, {method: "DELETE"}); await load(); status("Datei gelöscht."); }
       catch (error) { status(error.message); remove.disabled = false; }
-    }; actions.append(remove); row.append(actions); $("pages").append(row);
+    }; actions.append(remove);
+    const change = document.createElement("button"); change.textContent = "Link ändern";
+    change.onclick = async () => {
+      const value = prompt("Eigener URL-Name ohne .html (1–64 Kleinbuchstaben, Ziffern, Bindestriche). Leer setzt den Link zurück. Der bisherige eigene Link wird ersetzt; der ID-Link bleibt gültig.", p.slug || "");
+      if (value === null) return;
+      const slug = value.trim();
+      if (slug && (!/^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/.test(slug) || /^[a-f0-9]{32}$/.test(slug))) {
+        status("Ungültiger URL-Name. Keine Pfade, Dateiendungen, Großbuchstaben oder IDs verwenden."); return;
+      }
+      change.disabled = true;
+      try {
+        const saved = await api(`/api/pages/${encodeURIComponent(p.id)}/link`, {method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify({slug})});
+        await load(); status(`Link gespeichert: ${saved.url}`);
+      } catch (error) { status(error.message); }
+      finally { change.disabled = false; }
+    }; actions.append(change);
+    const download = document.createElement("a"); download.textContent = "Herunterladen";
+    download.className = "action"; download.href = `/api/pages/${encodeURIComponent(p.id)}/download`;
+    download.download = p.name; actions.append(download);
+    row.append(actions); $("pages").append(row);
   }
 }
 async function load() { pages = await api("/api/pages"); render(); }

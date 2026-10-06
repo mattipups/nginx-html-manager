@@ -2,6 +2,6 @@ apiVersion: v2
 name: nginx-html-manager
 description: HTML publication with isolated admin/public origins and persistent storage.
 type: application
-version: 1.0.2
-appVersion: "1.0.2"
+version: 1.1.0
+appVersion: "1.1.0"
 kubeVersion: ">=1.25.0-0"
