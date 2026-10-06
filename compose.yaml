@@ -1,7 +1,7 @@
 name: nginx-html-manager
 services:
   uploader:
-    image: local/html-manager:1.0.2
+    image: local/html-manager:1.1.0
     build:
       context: .
       args:
@@ -36,7 +36,7 @@ services:
       driver: json-file
       options: {max-size: 10m, max-file: "3"}
   nginx:
-    image: local/html-manager-nginx:1.0.2
+    image: local/html-manager-nginx:1.1.0
     build:
       context: .
       dockerfile: nginx/Dockerfile
