@@ -58,12 +58,13 @@ function render() {
   }
 }
 async function load() { pages = await api("/api/pages"); render(); }
-function sendFile(file, progress) {
+function sendFile(file, progress, profile) {
   return new Promise((resolve, reject) => {
     const request = new XMLHttpRequest(); request.open("POST", "/api/upload");
     request.timeout = 35000;
     request.setRequestHeader("Content-Type", "text/html; charset=utf-8");
     request.setRequestHeader("X-File-Name", encodeURIComponent(file.name));
+    request.setRequestHeader("X-Security-Profile", profile);
     request.upload.onprogress = e => { if (e.lengthComputable) progress(e.loaded / e.total); };
     request.onerror = () => reject(new Error("Netzwerkfehler"));
     request.ontimeout = () => reject(new Error("Upload-Zeitlimit überschritten"));
@@ -77,7 +78,11 @@ function sendFile(file, progress) {
 async function upload(fileList) {
   if (busy) { status("Bitte den laufenden Import abwarten."); return; }
   const selected = Array.from(fileList); if (!selected.length) return;
-  busy = true; $("files").disabled = true; $("progress").hidden = false;
+  const profile = $("profile").value;
+  if (!["static", "interactive-local", "interactive-api"].includes(profile)) {
+    status("Bitte ein gültiges Sicherheitsprofil auswählen."); return;
+  }
+  busy = true; $("files").disabled = true; $("profile").disabled = true; $("progress").hidden = false;
   const results = [];
   try {
     for (let i = 0; i < selected.length; i++) {
@@ -85,20 +90,20 @@ async function upload(fileList) {
       status(`Importiere ${i + 1}/${selected.length}: ${file.name}`);
       try {
         if (!/\.html?$/i.test(file.name)) throw new Error("Nur .html/.htm erlaubt");
-        await sendFile(file, fraction => { $("progress").value = ((i + fraction) / selected.length) * 100; });
+        await sendFile(file, fraction => { $("progress").value = ((i + fraction) / selected.length) * 100; }, profile);
         results.push(`✓ ${file.name}`);
       } catch (error) { results.push(`✗ ${file.name}: ${error.message}`); }
       $("progress").value = ((i + 1) / selected.length) * 100;
     }
     await load(); status(results.join("\n"));
   } catch (error) { status([...results, error.message].join("\n")); }
-  finally { busy = false; $("files").disabled = false; $("files").value = ""; $("progress").hidden = true; }
+  finally { busy = false; $("files").disabled = false; $("profile").disabled = false; $("files").value = ""; $("progress").hidden = true; }
 }
 $("files").onchange = e => upload(e.target.files);
 $("search").oninput = render;
 $("refresh").onclick = () => load().catch(e => status(e.message));
 const drop = $("drop");
-drop.addEventListener("click", e => { if (e.target !== $("files") && !busy) $("files").click(); });
+drop.addEventListener("click", e => { if (!e.target.closest("input, select, option, label, button, a, textarea") && !busy) $("files").click(); });
 drop.addEventListener("keydown", e => { if (e.target === drop && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); if (!busy) $("files").click(); } });
 for (const name of ["dragenter", "dragover"]) drop.addEventListener(name, e => { e.preventDefault(); drop.classList.add("drag"); });
 for (const name of ["dragleave", "drop"]) drop.addEventListener(name, e => { e.preventDefault(); drop.classList.remove("drag"); });
