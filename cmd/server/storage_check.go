@@ -368,7 +368,7 @@ func runStorageCheck(dataDir string, fix, confirm bool, in io.Reader, out io.Wri
 		return report, nil
 	}
 
-	fmt.Fprintf(out, "%-18s | %-30s | %s\n", "TYP", "PFAD", "DETAILS / REPARATUR-VORSCHAU")
+	fmt.Fprintf(out, "%-18s | %-18s | %-30s | %s\n", "STATUS", "TYP", "PFAD", "DETAILS / REPARATUR-VORSCHAU")
 	fmt.Fprintf(out, "%s\n", strings.Repeat("-", 90))
 
 	repairableCount := 0
@@ -380,7 +380,7 @@ func runStorageCheck(dataDir string, fix, confirm bool, in io.Reader, out io.Wri
 			actionNote = " -> Vorschau: " + issue.FixAction
 			repairableCount++
 		}
-		fmt.Fprintf(out, "%-18s | %-30s | %s%s\n", issue.Type, issue.Path, issue.Description, actionNote)
+		fmt.Fprintf(out, "%-18s | %-18s | %-30s | %s%s\n", flag, issue.Type, issue.Path, issue.Description, actionNote)
 	}
 	fmt.Fprintln(out)
 
