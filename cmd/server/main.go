@@ -133,13 +133,17 @@ table{width:100%;border-collapse:collapse}
 th,td{padding:12px 14px;text-align:left;border-bottom:1px solid #e2e8f0}
 th{font-size:13px;color:#56657c;text-transform:uppercase;letter-spacing:0.05em;font-weight:600}
 td:first-child{max-width:280px;overflow-wrap:anywhere;font-weight:500}
-a.action{padding:6px 14px;border:1px solid #bcc8d6;border-radius:6px;background:#eff6ff;color:#1e40af;cursor:pointer;font:inherit;text-decoration:none;display:inline-block;font-size:14px;font-weight:500}
-a.action:hover{background:#dbeafe;border-color:#93c5fd}
+td:first-child a{color:#475569;text-decoration:none;font:inherit}
+td:first-child a:visited{color:#625a72}
+td:first-child a:hover,td:first-child a:focus-visible{color:#334155;text-decoration:underline}
+a.action{padding:6px 14px;border:1px solid #bcc8d6;border-radius:6px;background:#f1f5f9;color:#475569;cursor:pointer;font:inherit;text-decoration:none;display:inline-block;font-size:14px;font-weight:500;margin:3px}
+a.action:hover{background:#e2e8f0;border-color:#94a3b8}
 .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:12px;font-weight:600}
 .badge-static{background:#e2e8f0;color:#334155}
 .badge-interactive{background:#dbeafe;color:#1e40af}
 .badge-api{background:#fef3c7;color:#92400e}
 footer{margin:32px 0;color:#56657c;font-size:14px;text-align:center}
+:focus-visible{outline:3px solid #60a5fa;outline-offset:3px}
 @media(prefers-color-scheme:dark){
 body{background:#111827;color:#f1f5f9}
 section{background:#1f2937;border-color:#374151}
@@ -147,7 +151,10 @@ section{background:#1f2937;border-color:#374151}
 input[type=search]{background:#111827;color:#f1f5f9;border-color:#4b5563}
 th{color:#9ca3af}
 th,td{border-color:#374151}
-a.action{background:#1e293b;color:#93c5fd;border-color:#475569}
+td:first-child a{color:#b8c3d4}
+td:first-child a:visited{color:#c1b8ce}
+td:first-child a:hover,td:first-child a:focus-visible{color:#e2e8f0}
+a.action{background:#1e293b;color:#b8c3d4;border-color:#475569}
 a.action:hover{background:#334155}
 footer{color:#9ca3af}
 .badge-static{background:#374151;color:#e5e7eb}
@@ -184,17 +191,9 @@ footer{color:#9ca3af}
 			displayName = p.Slug + " (" + p.Name + ")"
 		}
 		sizeStr := fmt.Sprintf("%.1f KiB", float64(p.Size)/1024.0)
-		badgeClass := "badge-static"
-		badgeLabel := "Statisch"
-		if p.Profile == ProfileInteractive {
-			badgeClass = "badge-interactive"
-			badgeLabel = "Interaktiv"
-		} else if p.Profile == ProfileAPIEnabled {
-			badgeClass = "badge-api"
-			badgeLabel = "Interaktiv (API)"
-		}
-		b.WriteString(fmt.Sprintf(`<tr><td><strong><a href="%s">%s</a></strong></td><td><span class="badge %s">%s</span></td><td>%s</td><td>%s</td><td><a class="action" href="%s">Öffnen</a></td></tr>`,
-			linkURL, html.EscapeString(displayName), badgeClass, badgeLabel, sizeStr, p.Created.Format("2006-01-02 15:04"), linkURL))
+		badgeClass, badgeLabel := publicProfileBadge(p.Profile)
+		b.WriteString(fmt.Sprintf(`<tr><td><a href="%s">%s</a></td><td><span class="badge %s">%s</span></td><td>%s</td><td>%s</td><td><a class="action" href="%s">Öffnen</a></td></tr>`,
+			linkURL, html.EscapeString(displayName), badgeClass, html.EscapeString(badgeLabel), sizeStr, p.Created.Format("2006-01-02 15:04"), linkURL))
 	}
 	b.WriteString(`</tbody>
 </table>
